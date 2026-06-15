@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Export Sales Order - {{ sales_order_number }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            letter-spacing: 1px;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 8px;
+            color: #000;
+        }
+
+        .container {
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        /* Header Section */
+        .header {
+            padding: 10px;
+        }
+
+        .header-top {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        .company-info {
+            text-align: center;
+            padding: 0 10px;
+        }
+
+        .company-name {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .invoice-data {
+            border: 1px solid #000;
+        }
+
+        .pdf-info {
+            text-align: center;
+            position: relative;
+            left: 50px;
+            font-size: 10px;
+        }
+
+        .invoice-code {
+            position: relative;
+            left: 100px;
+            font-weight: bold;
+            font-size: 10px;
+        }
+
+        /* Order Details Section */
+        .order-details {
+            margin-bottom: 10px;
+        }
+
+        .detail-row {
+            display: table;
+            width: 100%;
+            padding: 5px;
+        }
+
+        .detail-cell {
+            margin-bottom: 5px;
+        }
+
+        .detail-label {
+            font-weight: bold;
+            min-width: 80px;
+            display: inline-block;
+        }
+
+        .order-date {
+            float: right;
+            width: 180px;
+        }
+
+        /* Three Column Party Information */
+        .party-section {
+            margin-bottom: 10px;
+        }
+
+        .party-row {
+            display: table;
+            width: 100%;
+        }
+
+        .customer-notify-details {
+            display: table;
+            padding: 5px;
+        }
+
+        .party-column {
+            display: table-cell;
+            width: 40%;
+            vertical-align: top;
+        }
+
+        .party-title {
+            font-weight: bold;
+            position: absolute;
+            width: 70px;
+            display: inline-block;
+        }
+
+        .party-info {
+            display: inline-block;
+            margin-left: 85px;
+            width: 60%;
+        }
+
+        .party-info div {
+            margin-bottom: 5px;
+        }
+
+        /* Items Table */
+        .items-table {
+            width: 97%;
+            border: 1px solid #000;
+        }
+
+        .items-table th {
+            padding: 6px 4px;
+            border: 1px solid #000;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .items-table td {
+            border: 1px solid #000;
+            padding: 6px 4px;
+        }
+
+        .items-table td.center {
+            text-align: center;
+        }
+
+        .items-table td.right {
+            text-align: right;
+        }
+
+        /* Shipping & Terms Section */
+
+        .info-row {
+            width: 100%;
+        }
+
+        .info-cell {
+            width: 50%;
+            padding: 0 5px;
+            margin-bottom: 5px;
+        }
+
+        .info-label {
+            font-weight: bold;
+            display: inline-block;
+            min-width: 120px;
+        }
+
+        /* Footer Notes */
+        .footer-notes {
+            padding: 10px;
+            margin-bottom: 10px;
+            margin-top: 50px;
+        }
+
+        .footer-notes p {
+            margin: 3px 0;
+        }
+
+        .note-title {
+            font-weight: bold;
+            text-decoration: underline;
+        }
+
+        /* Signature Section */
+        .signature-table {
+            width: 98%;
+            margin: 0px 5px;
+            padding: 0;
+            position: relative;
+            border: none;
+            border: white;
+            top: -12px;
+        }
+
+        .signature-table tr{
+            border: none;
+        }
+
+        .signature-table td {
+            width: 33%;
+            text-align: center;
+            vertical-align: top;
+            border: none;
+        }
+
+        .signature-box {
+            padding-bottom: 5px;
+            font-size: 10px;
+            page-break-inside: avoid;
+            font: bold;
+            border: none;
+        }
+
+        .signature-line {
+            margin-bottom: 4px;
+            font-weight: bold;
+            margin-top: 30px;
+            letter-spacing: 0.5px;
+        }
+
+        .signature-designation{
+            font-weight: bold;
+            letter-spacing: 0.5px;
+        }
+
+        .text-bold {
+            font-weight: bold;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .mt-10 {
+            margin-top: 10px;
+        }
+
+        @media print {
+            body {
+                padding: 0;
+            }
+
+            .container {
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        
+        <div class="header">
+            <div class="company-info">
+                <div class="company-name">Transpek Industry Limited</div>
+                <span class="pdf-info">ORDER REGISTRATION FORM CUM DESPATCH DELIVERY ORDER</span>
+                <span class="invoice-code">TIL-EKB-MKT-FF-05</span>
+            </div>
+        </div>
+
+        <div class="invoice-data">
+            
+            <div class="order-details">
+                <div class="detail-row">
+                    <div class="detail-cell order-date">
+                        <span class="detail-label ">Date</span> : {{ date }}
+                    </div>
+                    <div class="detail-cell order-number">
+                        <span class="detail-label ">SO No</span> : {{ sales_order_number }}
+                    </div>
+                    <div class="detail-cell">
+                        <span class="detail-label">Mode</span> : {{ mode }}
+                    </div>
+                    <div class="detail-cell">
+                        <span class="detail-label">Agent Code</span> : {{ agent_code }}
+                    </div>
+                    <div class="detail-cell">
+                        <span class="detail-label">Agent Name</span> : {{ agent_name }}
+                    </div>
+                    <div class="detail-cell">
+                        <span class="detail-label">Order No</span> : {{ order_no }} Dt : {{ order_date }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="party-section">
+                <div class="party-row">
+                    
+                    <div class="customer-notify-details">
+                        <div class="party-column">
+                            <div class="party-title">
+                                Customer :
+                            </div>
+                            <div class="party-info">
+                                <div><span>{{ customer_name }}</span></div>
+                                <div><span>{{ customer_address_1 }}</span></div>
+                                <div><span>{{ customer_address_2 }}</span></div>
+                                <div><span>ATTN:{{ customer_attn }}</span></div>
+                                <div><span>TEL:{{ customer_phone_no }}</span></div>
+                                <div><span>Email:{{ customer_email }}</span></div>
+                            </div>
+                        </div>
+                        <div class="party-column">
+                            <div class="party-title">Notify1 :</div>
+                            <div class="party-info">
+                                {% if TPK1_name %}
+                                <div><span>{{ TPK1_name }}</span></div>
+                                <div><span>{{ TPK1_address }}</span> </div>
+                                <div><span>ATTN: {{ TPK1_contact }}</span></div>
+                                <div><span>TEL: {{ TPK1_phone }}</span></div>
+                                <div><span>EMAIL: {{ TPK1_email }}</span></div>
+                                <div><span>FAX: {{ TPK1_fax }}</span></div>
+                                {% else %}
+                                <p>-</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="customer-notify-details">
+                        <div class="party-column">
+                            <div class="party-title">Consignee :</div>
+                            <div class="party-info">
+                                <div><span>{{ consignee_name }}</span></div>
+                                <div><span>{{ consignee_address }}</span></div>
+                                <div><span>ATTN: {{ consignee_attn }}</span></div>
+                                {% if consignee_phone %}
+                                <div><span>TEL: {{ consignee_phone }}</span></div>
+                                {% endif %}
+                                {% if consignee_email %}
+                                <div><span>EMAIL: {{ consignee_email }}</span></div>
+                                {% endif %}
+                                {% if consignee_fax %}
+                                <div><span>FAX: {{ consignee_fax }}</span></div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="party-column">
+                            <div class="party-title">Notify2 :</div>
+                            <div class="party-info">
+                                {% if TPK2_name %}
+                                <div><span>{{ TPK2_name }}</span></div>
+                                <div><span>{{ TPK2_address }}</span></div>
+                                <div><span>ATTN: {{ TPK2_contact }}</span></div>
+                                <div><span>TEL: {{ TPK2_phone }}</span></div>
+                                <div><span>EMAIL: {{ TPK2_email }}</span></div>
+                                <div><span>FAX: {{ TPK2_fax }}</span></div>
+                                {% else %}
+                                <p>-</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-grid" style="margin: 0px 10px 20px 10px">
+                <div class="info-cell-pair">
+                    <div class="info-cell" style="float: left;">
+                        <span class="info-label">Currency</span> : {{ currency }}
+                    </div>
+                    <div class="info-cell" style="float: right;">
+                        <span class="info-label">Port of Loading</span> : {{ port_of_loading }}
+                    </div>
+                </div>
+                <div class="info-cell-pair">
+                    <div class="info-cell" style="float: left;">
+                        <span class="info-label">Deliver Date</span> : {{ deliver_date }}
+                    </div>
+                    <div class="info-cell" style="float: right;">
+                        <span class="info-label">Place of Delivery</span> : {{ place_of_delivery }}
+                    </div>
+                </div>
+                <div class="info-cell-pair">
+                    <div class="info-cell" style="float: left;">
+                        <span class="info-label">Tentative Shipment</span> : {{ tentative_shipment_date }}
+                    </div>
+                    <div class="info-cell" style="float: right;">
+                        <span class="info-label">Port of Discharge</span> : {{ port_of_discharge }}
+                    </div>
+                </div>
+                <div class="info-cell-pair">
+                    <div class="info-cell" style="float: left;">
+                        <span class="info-label">3rd Party Inspection</span> : {{ third_party_insepection }}
+                    </div>
+                    <div class="info-cell" style="float: right;">
+                        <span class="info-label">Destination</span> : {{ country_of_destination }}
+                    </div>
+                </div>
+                <div class="info-cell-pair">
+                    <div class="info-cell" style="float: left;">
+                        <span class="info-label">Shipping Marks</span> : {{ shipping_remakrs }}
+                    </div>
+                    <div class="info-cell" style="float: right;">
+                        <span class="info-label">Delivery Terms</span> : {{ delivery_terms }}
+                    </div>
+                </div>
+            </div>
+
+            <table class="items-table" style="margin: 10px 10px 0px 10px;">
+                <thead>
+                    <tr>
+                        <th style="width: 15%;">Product Code</th>
+                        <th style="width: 45%;">Description</th>
+                        <th style="width: 10%;">Grade</th>
+                        <th style="width: 10%;">Qty</th>
+                        <th style="width: 8%;">UOM</th>
+                        <th style="width: 12%;">Rate({{ currency }})</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in line_items %}
+                    <tr>
+                        <td class="center">{{ item.product_code }}</td>
+                        <td class="center">{{ item.description }}</td>
+                        <td class="center">{{ item.grade }}</td>
+                        <td class="center">{{ item.quantity }}</td>
+                        <td class="center">{{ item.unit_of_measure }}</td>
+                        <td class="center">{{ item.unit_price }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <div class="info-grid" style="margin: 10px 10px 0px 10px">
+                <div class="info-cell" >
+                    <span class="info-label">Pack & Code</span> : {{ pack_and_code }}
+                </div>
+                <div class="info-cell">
+                    <span class="info-label">Credit Limit Approval</span> : {{ credit_limit_approval }}
+                </div>
+                <div class="info-cell">
+                    <span class="info-label">Payment Terms</span> : {{ payment_terms }}
+                </div>
+                <div class="info-cell">
+                    <span class="info-label">Credit Days</span> : {{ credit_days }}
+                </div>
+                <div class="info-cell-pair">
+                    <div class="info-cell" style="float: left;">
+                        <span class="info-label">Commission (%)</span> : {{ commission }}
+                    </div>
+                    <div class="info-cell" style="float: right;">
+                        <span class="info-label">Comm. On</span> : {{ commission_on }}
+                    </div>
+                </div>
+                <div class="info-cell-pair">
+                    <div class="info-cell" style="float: left;">
+                        <span class="info-label">Shipment By</span> : {{ shipment_by }}
+                    </div>
+                    <div class="info-cell" style="float: right;">
+                        <span class="info-label">Type of Shipment</span> : {{ type_of_shipment }}
+                    </div>
+                </div>
+                <div class="info-cell-pair">
+                    <div class="info-cell" style="float: left;">
+                        <span class="info-label">Shipping Bill</span> : {{ shipping_bill }}
+                    </div>
+                    <div class="info-cell" style="float: right;">
+                        <span class="info-label">LC No & Dt</span> : {{ lc_no }} {{ lc_date }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer-notes">
+                <p class="note-title" style="margin-bottom: 5px;">Special Instructions:</p>
+                <p>1.ORIGINAL SHIPPING DOCUMENTS SEND TO SI GROUP SWITZERLAND GMBH</p>
+                <p>2.SPECIFICATION ACCORDING TO CUSTOMER'S RTA NO. 338/93</p>
+                <p>3.PLEASE ARRANGE TO STUFF MATERIAL IN ISO TANK CONTAINER</p>
+                <p>4.LABELS TO BE PASTED ON ISO TANK AS PER REGULATIONS</p>
+                <p>5.ISO TANK CONTAINER WITH 2 PNEUMATIC VALVES</p>
+                <p>6.SEND TWO COPIES OF INVOICE TO SI GROUP FRANCE (FRAA) SAS</p>
+                <p>7.INDICATE PO NUMBER ON ALL DOCUMENTS.</p>
+                <p>8.INDICATE TAX/VAT REGISTRATION NUMBER FR15790197503 ON INVOICE.</p>
+            </div>
+
+            <table class="signature-table">
+                <tr>
+                    <td class="signature-box">
+                        <div class="signature-line">Prepared By</div>
+                        <div class="signature-designation">{{ creator_name }}</div>
+                    </td>
+                    <td class="signature-box">
+                        <div class="signature-line">Checked By</div>
+                        <div class="signature-designation">(Marketing Export)</div>
+                    </td>
+                    <td class="signature-box">
+                        <div class="signature-line">Approved By</div>
+                        <div class="signature-designation">(Marketing Export)</div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+        crossorigin="anonymous"></script>
+</body>
+
+</html>

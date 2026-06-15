@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Approval Workflow System{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .status-pending { color: #ffc107; }
+        .status-approved { color: #28a745; }
+        .status-rejected { color: #dc3545; }
+        .flash-messages { margin-top: 20px; }
+        .request-card { margin-bottom: 20px; }
+        .btn-action { margin: 5px; }
+        footer{
+            margin-top: 300px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                <i class="fas fa-clipboard-check"></i> Approval Workflow
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="{{ url_for('index') }}">
+                    <i class="fas fa-home"></i> Home
+                </a>
+                <a class="nav-link" href="{{ url_for('submit_im_purchase') }}">
+                    <i class="fas fa-plus"></i> Submit Request
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Flash Messages -->
+       <!-- {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %} -->
+
+        <!-- Main Content -->
+        {% block content %}{% endblock %}
+    </div>
+
+    <footer class="bg-light text-center text-muted py-4 mt-[300px]">
+        <div class="container">
+            <p>&copy; 2024 Approval Workflow System. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/machine-details.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

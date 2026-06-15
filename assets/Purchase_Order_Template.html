@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Purchase Order - {{po_no}}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <style>
+        * {
+            -webkit-font-feature-settings: "kern" 1 !important;
+            font-feature-settings: "kern" 1 !important;
+            font-kerning: normal !important;
+            text-rendering: optimizeLegibility !important;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            margin: 0;
+            line-height: normal;
+            color: #000;
+        }
+
+        .header-section {
+            text-align: center;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+        }
+
+        .header-left {
+            display: table-cell;
+            vertical-align: top;
+            width: 65%;
+        }
+
+        .label {
+            font-weight: bold;
+            min-width: 150px;
+            display: inline-block;
+        }
+
+        .value {
+            flex: 1;
+            font-weight: bold;
+        }
+
+        .header-section h1 {
+            font-size: 22px;
+            font-weight: bold;
+            margin: 0;
+        }
+
+        .po-header-info {
+            display: table;
+            width: 100%;
+            padding-right: 10px;
+            margin-bottom: 20px;
+        }
+
+        .po-header-left {
+            display: table-cell;
+            width: 60%;
+
+        }
+
+        .po-header-right {
+            display: table-cell;
+            width: 40%;
+            text-align: right;
+        }
+
+        .vendor-buyer-section {
+            display: table;
+            width: 100%;
+        }
+
+        .vendor-section {
+            display: table-cell;
+            padding: 5px;
+            width: 50%;
+            border: 1px solid #000;
+        }
+
+        .vendor-section p {
+            margin: 0 0 10px 0;
+        }
+
+        .buyer-company-section {
+            display: table-cell;
+            width: 50%;
+            padding: 0px;
+            border-top: 1px solid #000;
+            border-right: 1px solid #000;
+            border-bottom: 1px solid #000;
+        }
+
+        .buyer-company-section-top {
+            margin: 5px;
+        }
+
+        .buyer-company-section .mention-address {
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .GST-element {
+            border-top: 1px solid #000;
+            padding: 5px;
+        }
+
+        .ship-to-section {
+            font-weight: bold;
+            padding: 5px;
+            border-left: 1px solid #000;
+            border-right: 1px solid #000;
+            border-bottom: 1px solid #000;
+        }
+
+        .instructions-box {
+            border-left: 1px solid #000;
+            border-right: 1px solid #000;
+            border-bottom: 1px solid #000;
+            padding: 5px;
+        }
+
+        .instruction-text {
+            margin: 0;
+            padding: 5px;
+        }
+
+        .items-table {
+            width: 100%;
+            border-left: 1px solid #000;
+            border-right: 1px solid #000;
+            border-bottom: 1px solid #000;
+        }
+
+        .items-table th {
+            font-weight: bold;
+            text-align: center;
+            padding: 5px;
+            letter-spacing: 1px;
+            border-left: 1px solid #000;
+            border-right: 1px solid #000;
+            border-bottom: 1px solid #000;
+            font-size: 12px;
+        }
+
+        .items-table td {
+            padding: 8px;
+            border: 1px solid #000;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .items-table td.center {
+            text-align: center;
+        }
+
+        .items-table td.right {
+            text-align: right;
+        }
+
+        .totals-section {
+            float: right;
+            width: 350px;
+            clear: both;
+        }
+
+        .totals-table {
+            width: 100%;
+            border-collapse: collapse;
+            border-left: 1px solid #000;
+
+        }
+
+        .totals-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #000;
+            border-right: 1px solid #000;
+
+        }
+
+        .totals-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .totals-table .label-col {
+            text-align: left;
+            width: 60%;
+        }
+
+        .totals-table .amount-col {
+            text-align: right;
+            font-weight: bold;
+            width: 40%;
+        }
+
+        .amount_delivery {
+            clear: both;
+            border: 1px solid #000;
+            padding: 5px;
+        }
+
+        .terms-conditions {
+            padding: 5px;
+            border-left: 1px solid #000;
+            border-right: 1px solid #000;
+            border-bottom: 1px solid #000;
+        }
+
+
+        .terms-conditions .info-row {
+            display: inline-block;
+            width: 33%;
+            vertical-align: top;
+        }
+
+
+
+        .remarks-notes-section {
+            padding: 5px;
+            border-left: 1px solid #000;
+            border-right: 1px solid #000;
+            border-bottom: 1px solid #000;
+        }
+
+        .remarks-notes-section .remarks-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .remarks-content {
+            line-height: 1.3;
+        }
+
+        .notes-section {
+            margin-top: 25px;
+            line-height: 1.4;
+        }
+
+        .notes-section h4 {
+            margin: 15px 0 8px 0;
+            font-weight: bold;
+        }
+
+        .notes-section ul {
+            margin: 8px 0;
+            padding-left: 20px;
+        }
+
+        .notes-section li {
+            margin-bottom: 5px;
+        }
+
+        .signatures-section {
+            margin-top: 10px;
+            display: table;
+            width: 100%;
+        }
+
+        .signature-left,
+        .signature-right {
+            display: table-cell;
+            width: 50%;
+            vertical-align: top;
+        }
+        .signature-right{
+            text-align: right;
+        }
+
+        .signature-box {
+            padding: 10px;
+            position: relative;
+        }
+
+        .signature-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .signature-designation {
+            margin-bottom: 2px;
+        }
+
+        .company-line {
+            border-left: 1px solid #000;
+            border-right: 1px solid #000;
+            border-bottom: 1px solid #000;
+            padding: 5px;
+        }
+        .TIL-line{
+            text-align: right;
+            font-weight: bold;
+        }
+
+        @media print {
+            body {
+                margin: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Header Section -->
+    <div class="header-section">
+        <h1>PURCHASE ORDER</h1>
+    </div>
+
+    <!-- PO Header Information -->
+    <div class="po-header-info">
+        <div class="header-left">
+            <div class="header-item">
+                <span class="label">Purchase Order No</span>
+                <span class="value">: {{ po_no }}</span>
+            </div>
+            <div class="header-item">
+                <span class="label">Purchase Order Date</span>
+                <span class="value">: {{ po_date }}</span>
+            </div>
+        </div>
+        <div class="po-header-right">
+            <div class="info-row">Supplier Copy</div>
+        </div>
+    </div>
+
+    <div class="vendor-buyer-section">
+        <!-- Vendor Information Section -->
+        <div class="vendor-section">
+            <p class="d-inline">TO,</p>
+            <div class="info-row d-inline" style="margin-left: 300px;">{{ vendor_no }}</div>
+            <div class="info-row fw-bold">{{ vendor_name }}</div>
+            <div class="info-row">{{ vendor_address }}</div>
+            <div class="info-row">{{ vendor_city }}</div>
+            <div class="info-row">{{ vendor_post_code }} {{ buyer_company_country }}</div>
+            <div class="info-row mt-4">GSTIN: {{ vendor_gst_no }} &nbsp;&nbsp; State: {{ vendor_state }} &nbsp;&nbsp;
+                State
+                Code: {{ buyer_company_state_code }}</div>
+        </div>
+
+        <!-- Buyer Company Information Section (Fixed Data) -->
+        <div class="buyer-company-section">
+            <div class="buyer-company-section-top">
+                <div class="mention-address">Please mention following address in your all documents:</div>
+                <div class="info-row fw-bold">{{ buyer_company_address }}</div>
+                <div class="info-row fw-bold">{{ buyer_company_name }}</div>
+                <div class="info-row fw-bold">{{ buyer_company_pincode }} {{ buyer_company_country }}</div>
+            </div>
+            <div class="info-row d-block GST-element">G.S.T REG. : {{ buyer_company_gst_no }}</div>
+        </div>
+    </div>
+
+    <div class="instructions-box">
+        <p class="instruction-text">Please supply in accordance with your quotation No. and with instructions herein the
+            following subject to terms & conditions overleaf</p>
+
+        <p class="instruction-text fw-bold mb-2">Please send us your original challan or extra copy of invoice alongwith
+            original GST
+            gatepass with supplies otherwise material will not
+            unloaded. Please mention our Purchase Order No. and Rate(s) in your all documents.
+        </p>
+        <p class="instruction-text fw-bold mb-2">
+            Test Certificate/ Certificate of analysis will be compulsorily required along with each supply otherwise
+            material will not be unloaded.
+            For all other terms & condition please see overleaf of purchase order.
+            Send us your bill in Duplicate (Note : Please mention our Purchase Order No. and Rate(s) in your all
+            documents)
+        </p>
+    </div>
+
+    <!-- Items Table -->
+    <table class="items-table">
+        <thead>
+            <tr>
+                <th style="width: 8%;">No.</th>
+                <th style="width: 50%;">PARTICULARS</th>
+                <th style="width: 12%;">QUANTITY</th>
+                <th style="width: 10%;">UNIT</th>
+                <th style="width: 10%;">RATE</th>
+                <th style="width: 10%;">AMOUNT</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in line_items %}
+            <tr>
+                <td class="center">{{ item.sr_no }}</td>
+                <td>{{ item.description }}</td>
+                <td class="center">{{ item.quantity }}</td>
+                <td class="center">{{ item.unit_of_measure }}</td>
+                <td class="right">{{ item.direct_unit_cost }}</td>
+                <td class="right">{{ item.amount }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Ship To Section -->
+    <div class="ship-to-section">
+        Ship To : {{ ship_to_address }} GSTIN: {{ ship_to_gst }}
+    </div>
+
+    <!-- Totals Section -->
+    <div class="totals-section">
+        <table class="totals-table">
+            <tr class="py-2 fw-bold">
+                <td class="label-col">Basic Total</td>
+                <td class="amount-col">{{ basic_total }}</td>
+            </tr>
+            <tr>
+                <td class="label-col">SGST {{ sgst_rate }}%</td>
+                <td class="amount-col">{{ sgst_amount }}</td>
+            </tr>
+            <tr>
+                <td class="label-col">CGST {{ cgst_rate }}%</td>
+                <td class="amount-col">{{ cgst_amount }}</td>
+            </tr>
+            <tr class="grand-total-row">
+                <td class="label-col fw-bold">Grand Total</td>
+                <td class="amount-col">{{ grand_total }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Amount in Words -->
+    <div class="amount_delivery">
+        **** {{ amount_in_words }} ****
+        <div class="info-row"><strong>Payment Term :</strong> {{ payment_terms }}</div>
+        <div class="info-row"><strong>Delivery Term / INCO Terms :</strong> {{ delivery_terms }}</div>
+        <div class="info-row"><strong>Delivery Instructions :</strong> {{ delivery_instructions }}</div>
+    </div>
+
+    <!-- Terms and Conditions -->
+    <div class="terms-conditions">
+        <div class="info-row"><strong>Specification No.:</strong> {{ specification_no }}</div>
+        <div class="info-row"><strong>Version Name :</strong> {{ version_name }}</div>
+        <div class="info-row"><strong>Version Date :</strong> {{ version_date }}</div>
+    </div>
+
+    <!-- Remarks Section (Fixed Data) -->
+    <div class="remarks-notes-section">
+        <div class="remarks-title">Remarks :</div>
+        <div class="remarks-content">
+            <div>{{ remarks_formatted }}</div>
+            <div>{{ remarks_delivery_location }}</div>
+        </div>
+        <div class="notes-section">
+            <h4>Important Note :</h4>
+            <ul>
+                <li>Please mention item description in your GST invoice & other documents strictly as per our purchase
+                    order.</li>
+                <li>Acceptance of the Material is Subject to Approval from our factory. If the Material is rejected, the
+                    same will be sent back to you at your cost including To & Fro Freight</li>
+                <li>Please send us your original challan or extra copy of invoice alongwith original GST gatepass with
+                    supplies otherwise material will not be unloaded. Please mention our Purchase Order No. and Rate(s)
+                    in
+                    your all documents.</li>
+                <li>Test Certificate/ Certificate of analysis will be compulsorily required along with each supply
+                    otherwise
+                    material will not be unloaded.</li>
+                <li>For all other terms & condition please see overleaf of purchase order.</li>
+            </ul>
+
+            <h4>Note For MSME Vendors</h4>
+            <ul>
+                <li>This is to inform that if you are a MSME vendor, then please provide your MSME registration
+                    certificate
+                    or renewal of the same, if it has been renewed recently. This is required to consider your entity as
+                    MSME vendor under the provision of the act and enable you to continue with the benefit provided
+                    under
+                    the MSME act.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Important Notes -->
+
+
+    <div class="company-line">
+        <p class="TIL-line">For Transpek Industry Limited</strong>
+        <div class="signatures-section">
+            <div class="signature-left">
+                <div class="signature-box">
+                    <div class="signature-name">{{ reviewed_by_name }}</div>
+                    <div class="signature-designation">{{ reviewed_by_designation }}</div>
+                </div>
+            </div>
+            <div class="signature-right">
+                <div class="signature-box">
+                    <div class="signature-name">{{ authorized_signatory_name }}</div>
+                    <div class="signature-designation">{{ authorized_signatory_designation }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Signatures Section (Fixed Data) -->
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI"
+        crossorigin="anonymous"></script>
+
+</body>
+
+</html>

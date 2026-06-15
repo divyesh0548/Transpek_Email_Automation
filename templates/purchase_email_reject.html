@@ -1,0 +1,300 @@
+<html>
+<head>
+    <title>Reject Purchase Requisition</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root {
+            --theme: #b02a37;
+            --theme-hover: #94222d;
+            --theme-bright: #dc3545;
+            --focus-ring: rgba(220, 53, 69, 0.22);
+            --border: #c5cad3;
+            --bg-page: #eef0f3;
+            --text: #1a1d21;
+            --text-muted: #5c6370;
+            --surface: #fff;
+            --radius: 2px;
+            --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: var(--font);
+            margin: 0;
+            padding: 1.25rem;
+            background-color: var(--bg-page);
+            min-height: 100vh;
+            color: var(--text);
+            font-size: 15px;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+        .container {
+            max-width: 560px;
+            margin: 0 auto;
+            background: var(--surface);
+            border-radius: var(--radius);
+            border: 1px solid #d8dde3;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+            overflow: hidden;
+        }
+        .header {
+            text-align: center;
+            color: #fff;
+            background: var(--theme);
+            padding: 1rem 1.25rem;
+            margin: 0;
+            border-bottom: 2px solid var(--theme-bright);
+        }
+        .header h2 { margin: 0; font-size: 1.2rem; font-weight: 600; letter-spacing: 0.02em; }
+        .content { padding: 1.25rem 1.5rem; }
+        .info {
+            background: #f4f6f8;
+            padding: 1rem 1rem;
+            margin: 1rem 0 1.25rem;
+            border-radius: var(--radius);
+            border: 1px solid #e2e5ea;
+            border-left: 3px solid var(--theme);
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+        }
+        .info-label { font-weight: 600; color: var(--text-muted); font-size: 0.875rem; }
+        .info-value { color: var(--text); text-align: right; }
+        .form-group { margin: 1.15rem 0; }
+        label {
+            display: block;
+            margin-bottom: 0.4rem;
+            font-weight: 600;
+            font-size: 0.875rem;
+            color: var(--text);
+        }
+        .hint { display: block; margin-top: 0.5rem; font-size: 0.8125rem; color: var(--text-muted); }
+        textarea,
+        .otp-input {
+            width: 100%;
+            padding: 0.65rem 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            resize: vertical;
+            font-family: inherit;
+            font-size: 0.9375rem;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        textarea:focus,
+        .otp-input:focus {
+            outline: none;
+            border-color: var(--theme-bright);
+            box-shadow: 0 0 0 2px var(--focus-ring);
+        }
+        .actions {
+            text-align: center;
+            margin-top: 1.5rem;
+            padding-top: 1.25rem;
+            border-top: 1px solid #e8ebef;
+        }
+        .btn {
+            padding: 0.7rem 1.6rem;
+            border: none;
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-size: 0.9375rem;
+            font-weight: 600;
+            margin: 0.35rem;
+            min-width: 11rem;
+            font-family: inherit;
+            transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.08s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn:active { transform: translateY(1px); }
+        .btn-reject {
+            background-color: var(--theme-bright);
+            color: #fff;
+        }
+        .btn-reject:hover {
+            background-color: var(--theme-hover);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+        }
+        .btn-cancel {
+            background-color: #5a6268;
+            color: #fff;
+        }
+        .btn-cancel:hover {
+            background-color: #495057;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+        }
+        .otp-error {
+            display: none;
+            background: #fce8e8;
+            color: #842029;
+            border: 1px solid #e9a1a8;
+            border-radius: var(--radius);
+            padding: 0.75rem 0.875rem;
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
+        }
+        .otp-error.visible { display: block; }
+        @media (max-width: 768px) {
+            body { padding: 0.75rem; }
+            .container { margin: 0 auto; }
+            .header h2 { font-size: 1.1rem; }
+            .content { padding: 1rem 1.15rem; }
+            .info-row { flex-direction: column; }
+            .info-value { text-align: left; }
+            .info-label { margin-bottom: 0.15rem; }
+            .btn {
+                width: 100%;
+                margin: 0.35rem 0;
+                padding: 0.85rem;
+            }
+        }
+        @media (max-width: 480px) {
+            body { padding: 0.5rem; }
+            .header { padding: 0.85rem 1rem; }
+            .content { padding: 0.9rem 1rem; }
+            .form-group { margin: 1rem 0; }
+            textarea, .otp-input { padding: 0.55rem 0.65rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>✗ Reject Purchase Order</h2>
+        </div>
+        <div class="content">
+            {% if otp_required %}
+            <div id="otp-error" class="otp-error" role="alert"></div>
+            {% endif %}
+            <div class="info">
+                <div class="info-row">
+                    <span class="info-label">Document No:</span>
+                    <span class="info-value">{{ req_no }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Buy from Vendor:</span>
+                    <span class="info-value">{{ buy_from_vendor_name }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Ship To:</span>
+                    <span class="info-value">{{ ship_to_name }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Order Date:</span>
+                    <span class="info-value">{{ order_date }}</span>
+                </div>
+            </div>
+            
+            <form method="POST" action="/purchase-email-process-rejection/{{ req_no }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <!-- This fields are just for debugging purpose, remove them later  -->
+                <div id="error-message" style="display: none; color: #dc3545; margin-top: 10px; font-weight: bold;"></div>
+                <div id="error-message-from-server" style="display: none; color: #dc3545; margin-top: 10px; font-weight: bold;"></div>
+                <div id="response" style="display: none; color: #000000; margin-top: 10px; font-weight: bold;"></div>
+
+                <input type="hidden" name="action" value="reject">
+                {% if otp_required %}
+                <div class="form-group">
+                    <label for="otp">Enter OTP sent to your email{% if otp_sent_to %}:{% endif %}</label>
+                    <input type="text" name="otp" id="otp" class="otp-input" maxlength="6" pattern="[0-9]{6}" inputmode="numeric"
+                        placeholder="6-digit OTP" required>
+                    {% if otp_sent_to %}<small class="hint">Sent to {{ otp_sent_to }}</small>{% endif %}
+                    <small class="hint">OTP valid for <span id="otp-timer">{{ otp_expiry_seconds }}</span> seconds.</small>
+                </div>
+                {% endif %}
+                <div class="form-group">
+                    <label for="reason">Rejection Reason:</label>
+                    <textarea name="reason" id="reason" rows="3" placeholder="Enter any comments or reasons for rejection..." required></textarea>
+                </div>
+                
+                <div class="actions">
+                    <button type="submit" class="btn btn-reject">✗ REJECT REQUEST</button>
+                </div>
+            </form>
+        </div>
+    </div>
+<script src="{{ url_for('static', filename='js/approval_telemetry.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    if (!form) return;
+    let otpSec = parseInt(document.getElementById('otp-timer') && document.getElementById('otp-timer').textContent, 10);
+    if (!isNaN(otpSec)) {
+        const tel = document.getElementById('otp-timer');
+        setInterval(function() {
+            if (otpSec > 0) { otpSec--; if (tel) tel.textContent = otpSec; }
+        }, 1000);
+    }
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const otpErrorEl = document.getElementById('otp-error');
+        if (otpErrorEl) { otpErrorEl.textContent = ''; otpErrorEl.classList.remove('visible'); }
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const submitDefault = (submitBtn && submitBtn.textContent.trim()) || '✗ REJECT REQUEST';
+        if (form.dataset.approvalSubmitInFlight === '1') return;
+        form.dataset.approvalSubmitInFlight = '1';
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Processing...'; }
+        try {
+            form.querySelectorAll('input[name="formDetails"], input[name="clientmachinedetails"]').forEach(function(el) { el.remove(); });
+            const telemetry = await window.buildApprovalTelemetry();
+            const fd = document.createElement('input');
+            fd.type = 'hidden';
+            fd.name = 'formDetails';
+            fd.value = JSON.stringify(telemetry.formDetails);
+            form.appendChild(fd);
+            const cd = document.createElement('input');
+            cd.type = 'hidden';
+            cd.name = 'clientmachinedetails';
+            cd.value = JSON.stringify(telemetry.clientmachinedetails);
+            form.appendChild(cd);
+        } catch (err) {
+            console.error(err);
+            form.dataset.approvalSubmitInFlight = '';
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = submitDefault; }
+            return;
+        }
+        const formData = new FormData(form);
+        function showOtpErr(msg) {
+            form.dataset.approvalSubmitInFlight = '';
+            if (otpErrorEl) { otpErrorEl.textContent = msg || 'Something went wrong.'; otpErrorEl.classList.add('visible'); }
+            const oi = document.getElementById('otp');
+            if (oi) { oi.value = ''; oi.focus(); }
+            if (submitBtn) { submitBtn.textContent = submitDefault; submitBtn.disabled = false; }
+        }
+        fetch('/purchase-email-process-approval-and-reject/{{ req_no }}', { method: 'POST', body: formData })
+        .then(async function(response) {
+            const raw = await response.text();
+            let data = null;
+            try { data = raw ? JSON.parse(raw) : null; } catch (e) { data = null; }
+            if (response.ok && data && data.success === true && data.status === 'Rejected') {
+                submitBtn.textContent = '❌ Rejected!';
+                submitBtn.style.backgroundColor = '#dc3545';
+                setTimeout(function() { window.close(); }, 2000);
+                return;
+            }
+            const errMsg = (data && (data.message || data.error)) || raw || ('Request failed (' + response.status + ').');
+            if (data && (data.reason === 'otp_expired' || data.reason === 'otp_max_attempts')) {
+                if (otpErrorEl) {
+                    otpErrorEl.textContent = errMsg;
+                    otpErrorEl.classList.add('visible');
+                }
+                submitBtn.disabled = true;
+                setTimeout(function() { window.close(); }, 3000);
+                return;
+            }
+            showOtpErr(errMsg);
+        })
+            .catch(function(error) {
+                console.error('Submit error:', error);
+                showOtpErr('Could not reach the server.');
+            });
+    });
+});
+</script>
+
+        </body>
+        </html>

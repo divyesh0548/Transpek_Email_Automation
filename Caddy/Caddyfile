@@ -1,0 +1,3 @@
+bot.transpek.in {
+    reverse_proxy localhost:5000
+}

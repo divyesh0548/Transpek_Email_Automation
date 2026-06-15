@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Purchase Requisition</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 10mm;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.2;
+            margin: 0;
+            padding: 0;
+            color: #000;
+                        letter-spacing: 0.05em;
+        }
+        * {
+            box-sizing: border-box;
+
+        }
+
+        .title {
+            text-align: center;
+            font-weight: bold;
+            font-size: 18px;
+            margin: 15px 0 20px 0;
+        }
+        
+        .main-container {
+            border: 2px solid #000;
+            padding: 15px;
+            margin: 5mm;
+        }
+        
+        .header-with-logo {
+            display: table;
+            width: 100%;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+        }
+        
+        .logo-section {
+            display: table-cell;
+            width: 80px;
+            vertical-align: top;
+        }
+        
+        .logo-section img {
+            width: 150px;
+            height: auto;
+        }
+        
+        .company-header {
+            display: table-cell;
+            vertical-align: top;
+            font-weight: bold;
+            letter-spacing: 1px;
+            font-size: 12px;
+        }
+        
+        
+        .header-section {
+            margin-bottom: 15px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 15px;
+            letter-spacing: 1px;
+        }
+        .header-left {
+            display: table-cell;
+            vertical-align: top;
+            width: 55%;
+        }
+        .header-right {
+            display: table-cell;
+            vertical-align: top;
+        }
+        
+        .header-content {
+            display: table;
+            width: 100%;
+        }
+        
+        .header-item {
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+        
+        .label {
+            font-weight: bold;
+            min-width: 130px;
+            display: inline-block;
+        }
+        .label-right{
+                        font-weight: bold;
+            min-width: 230px;
+            display: inline-block;
+        }
+        
+        .value {
+            flex: 1;
+        }
+        
+        .items-section {
+            margin: 15px 0;
+            border-bottom: 2px solid #000;
+            padding-bottom: 15px;
+        }
+        
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+            font-size: 10px;
+        }
+        
+        .items-table th,
+        .items-table td {
+            border: 1px solid #000;
+            padding: 4px 2px;
+            text-align: center;
+            vertical-align: middle;
+            word-wrap: break-word;
+        }
+        
+        .items-table th {
+            background-color: #f0f0f0;
+            font-weight: bold;
+            font-size: 10px;
+            line-height: 1.1;
+        }
+        
+        /* Specific column styling */
+        .items-table .description {
+            text-align: left;
+            width: 180px;
+            max-width: 180px;
+            word-wrap: break-word;
+            padding: 3px;
+        }
+        
+        .items-table .dept-name {
+            text-align: left;
+            width: 60px;
+        }
+        
+        .items-table .sr-no {
+            width: 25px;
+        }
+        
+        .items-table .item-code {
+            width: 55px;
+        }
+        
+        .items-table .qty {
+            width: 35px;
+            text-align: right;
+        }
+        
+        .items-table .uom {
+            width: 30px;
+        }
+        
+        .items-table .rate,
+        .items-table .value {
+            width: 60px;
+            text-align: right;
+        }
+        
+        .items-table .job-card,
+        .items-table .location-inv,
+        .items-table .item-inv {
+            width: 50px;
+        }
+        
+        .items-table .delivery-date {
+            width: 60px;
+        }
+        
+        .total-row {
+            font-weight: bold;
+            background-color: #f8f8f8;
+        }
+        
+        .total-row td {
+            border: 1px solid #000;
+            font-weight: bold;
+        }
+        
+        .amount-section {
+            margin: 15px 0;
+            border-bottom: 2px solid #000;
+            padding-bottom: 15px;
+            font-size: 12px;
+        }
+        
+        .amount-words {
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        
+        .remarks-section {
+            margin: 15px 0;
+            border-bottom: 2px solid #000;
+            padding-bottom: 15px;
+                        font-size: 12px;
+        }
+        
+        .remarks-label {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .signatures-section {
+            margin-top: 40px;
+        }
+        
+        .signatures-row {
+            display: table;
+            width: 100%;
+        }
+        
+        .signature-column {
+            width: 40%;
+            display: table-cell;
+            text-align: center;
+        }
+        
+        .signature-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            font-size: 10px;
+        }
+        
+        .signature-space {
+            height: 30px;
+            border-bottom: 1px solid #000;
+            margin-bottom: 12px;
+        }
+        
+        .signature-name {
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 3px;
+        }
+        
+        .signature-email {
+            font-size: 8px;
+            color: #666;
+        }
+        
+        /* Print optimizations */
+        @media print {
+            body {
+                -webkit-print-color-adjust: exact;
+            }
+            
+            .main-container {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+
+        <!-- Title -->
+        <div class="title">PURCHASE REQUSITION - GENERAL</div>
+        <!-- Header with Logo and Company Info -->
+        <div class="header-with-logo">
+            <div class="company-header">
+                TRANSPEK INDUSTRY LIMITED<br>
+                4TH FLOOR, LILLERIA 1038,<br>
+                GOTRI SEVASI ROAD,<br>
+                VADODARA-390021, GUJARAT.
+            </div>
+            <div class="logo-section">
+                <img src="{{ logo }}" alt="Transpek Logo" />
+            </div>
+       
+        </div>
+        
+
+        
+        <!-- Header Information Section -->
+        <div class="header-section">
+            <div class="header-content">
+                <!-- LEFT SIDE: Only Reqn. No. and Reqn. Date -->
+                <div class="header-left">
+                    <div class="header-item">
+                        <span class="label">Reqn. No.</span>
+                        <span class="value">: {{ reqn_no }}</span>
+                    </div>
+                    <div class="header-item">
+                        <span class="label">Reqn. Date</span>
+                        <span class="value">: {{ reqn_date }}</span>
+                    </div>
+                </div>
+                
+                <!-- RIGHT SIDE: All other fields -->
+                <div class="header-right">
+                    <div class="header-item">
+                        <span class="label-right">Request Form Location</span>
+                        <span class="value">: {{ indenting_department }}</span>
+                    </div>
+                    <div class="header-item">
+                        <span class="label-right">Approval Status</span>
+                        <span class="value">: Pending</span>
+                    </div>
+                    <div class="header-item">
+                        <span class="label-right">Approved Date & Time</span>
+                        <!-- <span class="value">: {{ approved_date_time }}</span> -->
+                        <span class="value">: </span>
+                    </div>
+                    <div class="header-item">
+                        <span class="label-right">Indenting Department</span>
+                        <span class="value">: {{ indenting_department }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Items Table Section -->
+        <div class="items-section">
+            <table class="items-table">
+                <thead>
+                    <tr>
+                        <th class="sr-no">Sr. No.</th>
+                        <th class="item-code">Item Code</th>
+                        <th class="description">Description</th>
+                        <th class="dept-name">Dept. Name</th>
+                        <th class="qty">Required<br>Qty</th>
+                        <th class="uom">UOM</th>
+                        <th class="rate">RATE</th>
+                        <th class="value">VALUE</th>
+                        <th class="job-card">Job Card<br>No</th>
+                        <th class="location-inv">Location<br>Inventory</th>
+                        <th class="item-inv">Item<br>Inventory</th>
+                        <th class="delivery-date">Delivery Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in line_items %}
+                    <tr>
+                        <td class="sr-no">{{ loop.index }}</td>
+                        <td class="item-code">{{ item.item_code }}</td>
+                        <td class="description">{{ item.description }}</td>
+                        <td class="dept-name">{{ item.dept_name }}</td>
+                        <td class="qty">{{ "%.3f"|format(item.quantity|float) }}</td>
+                        <td class="uom">{{ item.uom }}</td>
+                        <td class="rate">{{ "%.2f"|format(item.rate|float) }}</td>
+                        <td class="value">{{ "%.2f"|format(item.value|float) }}</td>
+                        <td class="job-card">{{ item.job_card_no }}</td>
+                        <td class="location-inv">0.00</td>
+                        <td class="item-inv">{{ item.stock_on_hand }}</td>
+                        <td class="delivery-date">{{ item.delivery_date }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="total-row">
+                        <td colspan="7" style="text-align: right; font-weight: bold; padding-right: 10px;"></td>
+                        <td style="text-align: right; font-weight: bold;">{{ "%.2f"|format(total_value) }}</td>
+                        <td colspan="4"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        
+        <!-- Amount in Words Section -->
+        <div class="amount-section">
+            <div class="amount-words">
+                Amount in Words : {{ amount_in_words }}
+            </div>
+        </div>
+        
+        <!-- Remarks Section -->
+        <div class="remarks-section">
+            <div class="remarks-label">Remarks :</div>
+            <div>{{ remarks }}</div>
+        </div>
+        
+        <!-- Signatures Section -->
+        <div class="signatures-section">
+            <div class="signatures-row">
+                <div class="signature-column">
+                    <div class="signature-name">{{ prepared_by }}</div>
+                    <div class="signature-space"></div>
+                    <div class="signature-title">(Prepared By)</div>
+                </div>
+                
+                <div class="signature-column">
+                    <div class="signature-name">{{ approved_by }}</div>
+                    <div class="signature-space"></div>
+                    <div class="signature-title">(Approved By)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
