@@ -929,7 +929,6 @@ def send_sales_order_response_email_to_customer(request_id, response_status, sta
         body_html = f"""
         <html>
         <body style='font-family: Arial, sans-serif;'>
-        <h2>Document Response Update</h2>
         <p>Dear User,</p>
         <p>Your document has been processed with the following response:</p>
         <table border='1' style='border-collapse: collapse; margin: 20px 0;'>
