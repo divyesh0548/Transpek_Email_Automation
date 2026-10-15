@@ -1,13 +1,12 @@
 from Utility_Functions.config.constants import SALES_ORDER_ITEMS_TABLE, SALES_ORDER_EMAIL_TABLE, SALES_ORDER_GST, SALES_ORDER_MAIN, SALES_PERSON_TABLE, SALES_ORDER_SHIPMENT_TABLE, SALES_ORDER_TPK_DETAILS_TABLE, SALES_ORDER_SHIP_TO_ADDRESS_TABLE, SALES_ORDER_CUSTOMER_TABLE, SALES_ORDER_SECONDARY_ITEMS_TABLE, APPROVAL_ENTRY_TABLE, COUNTRY_REGION_CODES_TABLE, TRANSPORT_METHOD_CODE_TABLE, PAYMENT_TERMS_CODE_TABLE, SHIPMENT_METHOD_TABLE, ENTRY_EXIT_POINTS_TABLE, CODE_CITY_TABLE
 from Utility_Functions.config.database import get_odbc_connection_string, row_to_dict, get_table_schema, get_engine, get_state_info
-from Utility_Functions.config.utility_functions import extract_name_from_email
+from Utility_Functions.config.utility_functions import extract_name_from_email, smtp_send_message
 import pyodbc
 import uuid
 from datetime import datetime
 from sqlalchemy import text
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-import smtplib
 import os
 import re
 import io
@@ -870,16 +869,12 @@ def send_sales_approval_email(data, line_items):
             print(f"❌ Error generating PDF for document {req_id}: {e}")
             return False
 
-        # Send email
+        # Send email (with DNS/network retries)
         try:
-            server = smtplib.SMTP(smtp_server, smtp_port)
-            server.starttls()
-            server.login(smtp_user, smtp_password)
-            server.send_message(msg)
-            server.quit()
+            smtp_send_message(msg)
             print(f"✅ Approval email sent successfully for document {req_id}")
 
-        except smtplib.SMTPException as e:
+        except Exception as e:
             print(f"❌ SMTP Error sending email for Document No {req_id}: {e}")
             return False
 
@@ -945,13 +940,9 @@ def send_sales_order_response_email_to_customer(request_id, response_status, sta
         
         msg.attach(MIMEText(body_html, 'html'))
         
-        # Send email
+        # Send email (with DNS/network retries)
         try:
-            server = smtplib.SMTP(smtp_server, smtp_port)
-            server.starttls()
-            server.login(smtp_user, smtp_password)
-            server.send_message(msg)
-            server.quit()
+            smtp_send_message(msg)
 
             # Email sent successfully, perform SQL UPDATE
             sql = f"""

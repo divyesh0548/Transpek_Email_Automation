@@ -6,12 +6,12 @@ from datetime import datetime
 from sqlalchemy import text
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-import smtplib
 import os
 import json
 import re
 import uuid
 from Utility_Functions.config.secure import encrypt, decrypt
+from Utility_Functions.config.utility_functions import smtp_send_message
 
 # Job card columns used by check_job_task_pending_emails (see job_main_table.txt)
 _JOB_CARD_MAIN_PENDING_COLUMNS = (
@@ -404,15 +404,8 @@ def send_job_card_approval_email(data, line_items):
         msg.attach(pdf_attachment)
         
         print(f"[DEBUG] Attempting SMTP send for document {req_id}...")
-        server = smtplib.SMTP(smtp_server, smtp_port)
-        server.starttls()
-        server.login(smtp_user, smtp_password)
         try:
-            print("Testing PDF generation......")
-            server.send_message(msg)
-            server.quit()
-
-
+            smtp_send_message(msg)
         except Exception as e:
             print(f"Error sending email for Document No {data.get('No_','')}")
             print(f"Error : {e}")
@@ -482,13 +475,9 @@ def send_job_card_response_email_to_customer(request_id, response_status, reason
         
         msg.attach(MIMEText(body_html, 'html'))
         
-        # Send email
+        # Send email (with DNS/network retries)
         try:
-            server = smtplib.SMTP(smtp_server, smtp_port)
-            server.starttls()
-            server.login(smtp_user, smtp_password)
-            server.send_message(msg)
-            server.quit()
+            smtp_send_message(msg)
 
             # Email sent successfully, perform SQL UPDATE
             sql = f"""

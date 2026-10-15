@@ -6,6 +6,7 @@ import io
 import base64
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
+from Utility_Functions.config.utility_functions import get_local_bootstrap_urls
 
 # Configure wkhtmltopdf path (adjust as needed for your system)
 BASE_DIR = Path(__file__).resolve().parent
@@ -270,7 +271,10 @@ def prepare_export_so_template_data(header_data: Dict, line_data: List[Dict]) ->
         'line_items': prepared_line_items,
         
         'current_date': datetime.now().strftime('%d-%m-%Y'),
-        'current_year': datetime.now().year
+        'current_year': datetime.now().year,
+
+        # Offline Bootstrap for wkhtmltopdf (no CDN)
+        **get_local_bootstrap_urls(),
     }
 
 def generate_export_sales_order_pdf(header_data: Dict, line_data: List[Dict],

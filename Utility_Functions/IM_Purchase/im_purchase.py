@@ -6,12 +6,12 @@ from datetime import datetime, date, time
 from sqlalchemy import text
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-import smtplib
 import os
 import json
 import socket
 import uuid
 from Utility_Functions.config.secure import encrypt, decrypt
+from Utility_Functions.config.utility_functions import smtp_send_message
 
 def get_status_text(status_code):
     """Convert status code to text - now handles both numeric and text status"""
@@ -737,11 +737,7 @@ def send_approval_email(data, line_item_data):
             print(f"❌ Invalid recipient email for document {req_id}: '{recipient_email}'")
             return False
         print(f"[DEBUG] Attempting SMTP send for document {req_id}...")
-        server = smtplib.SMTP(smtp_server, smtp_port, timeout=10)
-        server.starttls()
-        server.login(smtp_user, smtp_password)
-        server.send_message(msg)
-        server.quit()
+        smtp_send_message(msg)
         print(f"✅ Approval email sent for document {data.get('No_', '')}")
         return True
     except Exception as e:
@@ -847,11 +843,7 @@ def send_accountant_email(data, line_item_data, acc1_email, acc2_email):
                 print(f"✅ Valid email: {email_addr}")
         
         print(f"[DEBUG] Attempting SMTP send for document {req_id}...")
-        server = smtplib.SMTP(smtp_server, smtp_port, timeout=10)
-        server.starttls()
-        server.login(smtp_user, smtp_password)
-        server.send_message(msg)
-        server.quit()
+        smtp_send_message(msg)
         print(f"✅ Accountant email sent for document {data.get('No_', '')}")
         return True
     except Exception as e:
@@ -908,12 +900,8 @@ def send_response_email_to_creator(purchase_req, response_status, reason=None):
         
         msg.attach(MIMEText(body_html, 'html'))
         
-        # Send email
-        server = smtplib.SMTP(smtp_server, smtp_port, timeout=10)
-        server.starttls()
-        server.login(smtp_user, smtp_password)
-        server.send_message(msg)
-        server.quit()
+        # Send email (with DNS/network retries)
+        smtp_send_message(msg)
         
         print(f"✅ Response email sent to creator {creator_email} for document {purchase_req.get('No_', '')}")
         return True
@@ -975,12 +963,8 @@ def send_accountant_response_email_to_creator(purchase_req, response_status, rea
         
         msg.attach(MIMEText(body_html, 'html'))
         
-        # Send email
-        server = smtplib.SMTP(smtp_server, smtp_port, timeout=10)
-        server.starttls()
-        server.login(smtp_user, smtp_password)
-        server.send_message(msg)
-        server.quit()
+        # Send email (with DNS/network retries)
+        smtp_send_message(msg)
         
         print(f" Accountant response email sent to creator {creator_email} for document {purchase_req.get('No_', '')}")
         return True

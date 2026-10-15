@@ -6,6 +6,7 @@ import io
 import os
 import base64
 from pathlib import Path
+from Utility_Functions.config.utility_functions import get_local_bootstrap_urls
 
 # Configure wkhtmltopdf path (adjust as needed for your system)
 BASE_DIR = Path(__file__).resolve().parent
@@ -196,7 +197,10 @@ def prepare_job_card_template_data(form_data: Dict, line_items: List[Dict]) -> D
         
         # Current date for generation
         'current_date': datetime.now().strftime('%d-%m-%Y'),
-        'current_year': datetime.now().year
+        'current_year': datetime.now().year,
+
+        # Offline Bootstrap for wkhtmltopdf (no CDN)
+        **get_local_bootstrap_urls(),
     }
 
 def generate_job_card_pdf(form_data: Dict, line_items: List[Dict], template_filename: str = "job_card_template.html", output_filename: str = None):

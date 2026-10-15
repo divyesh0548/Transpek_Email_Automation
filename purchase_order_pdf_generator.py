@@ -6,6 +6,7 @@ import io
 import os
 import base64
 from pathlib import Path
+from Utility_Functions.config.utility_functions import get_local_bootstrap_urls
 
 # Configure wkhtmltopdf path (adjust as needed for your system)
 BASE_DIR = Path(__file__).resolve().parent
@@ -207,7 +208,10 @@ def prepare_Purchase_Order_Template_data(header_data: Dict, line_data: List[Dict
         
         # Current date for generation
         'current_date': datetime.now().strftime('%d-%m-%Y'),
-        'current_year': datetime.now().year
+        'current_year': datetime.now().year,
+
+        # Offline Bootstrap for wkhtmltopdf (no CDN)
+        **get_local_bootstrap_urls(),
     }
 
 def get_document_type_suffix():

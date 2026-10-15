@@ -2,10 +2,10 @@ import pyodbc
 from datetime import datetime, timedelta
 import logging
 import os
-import smtplib
 import re
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from Utility_Functions.config.utility_functions import smtp_send_message
 
 # Configure logging
 logging.basicConfig(
@@ -304,11 +304,8 @@ class ReminderEmailService:
             # Attach HTML body
             msg.attach(MIMEText(body_html, 'html'))
             
-            # Send email
-            with smtplib.SMTP(smtp_server, smtp_port) as server:
-                server.starttls()
-                server.login(smtp_user, smtp_password)
-                server.send_message(msg)
+            # Send email (with DNS/network retries)
+            smtp_send_message(msg)
             
             logger.info(f"Reminder email sent successfully for order: {order_number} to approver {approver_email}")
             return True
@@ -385,11 +382,8 @@ class ReminderEmailService:
             # Attach HTML body
             msg.attach(MIMEText(body_html, 'html'))
             
-            # Send email
-            with smtplib.SMTP(smtp_server, smtp_port) as server:
-                server.starttls()
-                server.login(smtp_user, smtp_password)
-                server.send_message(msg)
+            # Send email (with DNS/network retries)
+            smtp_send_message(msg)
             
             logger.info(f"Reminder email sent successfully for order: {order_number} to accountants {', '.join(recipient_emails)}")
             return True
