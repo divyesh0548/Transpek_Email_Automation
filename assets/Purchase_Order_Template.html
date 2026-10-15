@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Purchase Order - {{po_no}}</title>
-    <link href="{{ bootstrap_css_url }}" rel="stylesheet">
+    <style>{{ bootstrap_css_content | safe }}</style>
     <style>
         * {
             -webkit-font-feature-settings: "kern" 1 !important;
@@ -497,7 +497,6 @@
     </div>
     <!-- Signatures Section (Fixed Data) -->
 
-    <script src="{{ bootstrap_js_url }}"></script>
 
 </body>
 

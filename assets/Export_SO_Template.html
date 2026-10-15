@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Export Sales Order - {{ sales_order_number }}</title>
-    <link href="{{ bootstrap_css_url }}" rel="stylesheet">
+    <style>{{ bootstrap_css_content | safe }}</style>
     <style>
         * {
             margin: 0;
@@ -503,7 +503,6 @@
         </div>
     </div>
     </div>
-    <script src="{{ bootstrap_js_url }}"></script>
 </body>
 
 </html>
