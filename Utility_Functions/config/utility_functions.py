@@ -19,23 +19,50 @@ def extract_name_from_email(email):
     return name_part.capitalize()
 
 
-def get_local_bootstrap_urls():
+def _resolve_bootstrap_asset_path(env_var_name: str, default_relative: str) -> Path:
     """
-    Project-relative paths for offline Bootstrap assets used by wkhtmltopdf.
-    Paths are relative to the project root (same as other assets/ usages).
+    Resolve a Bootstrap asset path for wkhtmltopdf.
+
+    Prefer absolute path from .env (machine-specific, avoids merge conflicts in code).
+    Fall back to project-root relative path derived from this file's location.
     """
     project_root = Path(__file__).resolve().parents[2]
-    css_rel = "assets/css/bootstrap.min.css"
-    js_rel = "assets/js/bootstrap.bundle.min.js"
-    css_path = project_root / css_rel
-    js_path = project_root / js_rel
+    configured = (os.getenv(env_var_name) or "").strip().strip('"').strip("'")
+    if configured:
+        path = Path(configured)
+        if not path.is_absolute():
+            path = project_root / path
+    else:
+        path = project_root / default_relative
+    return path.resolve()
+
+
+def get_local_bootstrap_urls():
+    """
+    file:// URLs for offline Bootstrap assets used by wkhtmltopdf.
+
+    Set BOOTSTRAP_CSS_PATH / BOOTSTRAP_JS_PATH in .env to absolute paths on each
+    machine. If unset, paths are derived from the project directory automatically.
+    """
+    css_path = _resolve_bootstrap_asset_path(
+        "BOOTSTRAP_CSS_PATH", "assets/css/bootstrap.min.css"
+    )
+    js_path = _resolve_bootstrap_asset_path(
+        "BOOTSTRAP_JS_PATH", "assets/js/bootstrap.bundle.min.js"
+    )
     if not css_path.is_file():
-        raise FileNotFoundError(f"Bootstrap CSS not found: {css_rel}")
+        raise FileNotFoundError(
+            f"Bootstrap CSS not found: {css_path}. "
+            "Set BOOTSTRAP_CSS_PATH in .env to the absolute file path."
+        )
     if not js_path.is_file():
-        raise FileNotFoundError(f"Bootstrap JS not found: {js_rel}")
+        raise FileNotFoundError(
+            f"Bootstrap JS not found: {js_path}. "
+            "Set BOOTSTRAP_JS_PATH in .env to the absolute file path."
+        )
     return {
-        "bootstrap_css_url": css_rel,
-        "bootstrap_js_url": js_rel,
+        "bootstrap_css_url": css_path.as_uri(),
+        "bootstrap_js_url": js_path.as_uri(),
     }
 
 
