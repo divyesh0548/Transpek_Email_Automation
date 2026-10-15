@@ -1,0 +1,3 @@
+nslookup smtp.office365.com
+
+nslookup cdn.jsdelivr.net

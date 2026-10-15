@@ -1,1 +1,1 @@
-IM Purchase and SO both are tested in both scenarios.
+IM Purchase, SO, PO are tested in both scenarios.
