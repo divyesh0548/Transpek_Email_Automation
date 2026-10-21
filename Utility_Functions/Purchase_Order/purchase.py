@@ -11,7 +11,7 @@ import json
 import re
 import uuid
 from Utility_Functions.config.secure import encrypt, decrypt
-from Utility_Functions.config.utility_functions import smtp_send_message
+from Utility_Functions.config.utility_functions import format_utc_timestamp_as_ist, get_utc_timestamp, smtp_send_message
 
 # Purchase Header columns used by check_purchase_order_pending_emails (see purchase_main_table.txt)
 _PURCHASE_HEADER_MAIN_COLUMNS = (
@@ -224,7 +224,7 @@ def check_purchase_order_pending_emails():
                     print(f"Line Items : {items_list}")
                     print(f"Processing data with No : {email_row[0]}")
 
-                    current_time = str(datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])[:255]
+                    current_time = get_utc_timestamp()
 
                     approver_email_id = email_row[1]
 
@@ -378,7 +378,7 @@ def send_purchase_approval_email(data, line_items):
         print(f"Error : {e}")
         return False
 
-def send_purchase_response_email_to_creator(request_id, response_status, reason=None):
+def send_purchase_response_email_to_creator(request_id, response_status, reason=None, timestamp=None):
     """Send response email to creator after approval/rejection"""
     try:
         sql = f"""SELECT [Creator Mail ID] FROM {PURCHASE_EMAIL_TABLE} WHERE [No_] = ?"""
@@ -409,6 +409,8 @@ def send_purchase_response_email_to_creator(request_id, response_status, reason=
         msg['To'] = creator_email
         msg['Subject'] = f"Response for Document {request_id}"
         
+        response_time_ist = format_utc_timestamp_as_ist(timestamp or get_utc_timestamp())
+
         # Create email body
         body_html = f"""
         <html>
@@ -419,7 +421,7 @@ def send_purchase_response_email_to_creator(request_id, response_status, reason=
             <tr><td><strong>Document No:</strong></td><td>{request_id}</td></tr>
             <tr><td><strong>Response:</strong></td><td style='color: {"green" if "Approved" in response_status else "red"}'>{response_status}</td></tr>
             {f"<tr><td><strong>Reason:</strong></td><td>{reason}</td></tr>" if reason else ""}
-            <tr><td><strong>Response Time:</strong></td><td>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</td></tr>
+            <tr><td><strong>Response Time:</strong></td><td>{response_time_ist}</td></tr>
         </table>
         <p>Best regards,<br>
         Transpek System</p>

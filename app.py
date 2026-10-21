@@ -25,6 +25,7 @@ from Utility_Functions.config.release_API import (
     release_api_should_retry,
     release_api_failure_message,
 )
+from Utility_Functions.config.utility_functions import get_utc_timestamp
 from load_secrets import load_secrets
 from flask_session import Session
 from Utility_Functions.config.approval_otp import (
@@ -1379,8 +1380,8 @@ def purchase_email_process_approval_and_reject(request_id):
             "ip": client_ip if client_ip and client_ip != '127.0.0.1' else "0.0.0.0"
         }
         
-        # Get full timestamp
-        full_timestamp = get_full_timestamp()
+        # Store approval timestamps in UTC.
+        full_timestamp = get_utc_timestamp()
 
         # Updating Email table after sending Email
         if action == 'reject':
@@ -1391,12 +1392,13 @@ def purchase_email_process_approval_and_reject(request_id):
             status = 1  # Approved
         else:
             raise ValueError('Invalid action')
+        approved_date_assignment = ",\n                  [Approved Date] = ?" if action == 'approve' else ""
         sql = f"""
               UPDATE {PURCHASE_EMAIL_TABLE}
               SET [Emaill Status] = ?,
                   [Reason] = ?,
                   [Timestamps] = ?,
-                  [User Data] = ?
+                  [User Data] = ?{approved_date_assignment}
               WHERE [No_] = ?
               """       
         sql_status_update = f"""
@@ -1405,11 +1407,15 @@ def purchase_email_process_approval_and_reject(request_id):
               WHERE [No_] = ?
               """  
         reason_val = reason.strip() if reason and reason.strip() else "None"
-        current_time = str(datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])[:255]
+        current_time = full_timestamp
         try:
             with pyodbc.connect(get_odbc_connection_string(), timeout=30) as conn:
                 cursor = conn.cursor()
-                cursor.execute(sql, email_status, reason_val, current_time, device_string, request_id)
+                email_update_params = [email_status, reason_val, current_time, device_string]
+                if action == 'approve':
+                    email_update_params.append(current_time)
+                email_update_params.append(request_id)
+                cursor.execute(sql, *email_update_params)
                 cursor.execute(sql_status_update, status, request_id)
                 approval_status = 3 if action == 'reject' else 4
                 sql_approval_update = f"""
@@ -1467,7 +1473,7 @@ def purchase_email_process_approval_and_reject(request_id):
                     args=[request_id, 1]  # Initial attempt
                 )
 
-            send_purchase_response_email_to_creator(request_id, email_status, reason)
+            send_purchase_response_email_to_creator(request_id, email_status, reason, current_time)
 
         except Exception as insert_error:
             print(f"Error updating email status: {insert_error}")
@@ -1804,8 +1810,8 @@ def sales_order_email_process_approval_and_reject(request_id):
             "ip": client_ip if client_ip and client_ip != '127.0.0.1' else "0.0.0.0"
         }
         
-        # Get full timestamp
-        current_time = str(datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])[:255]
+        # Store approval timestamps in UTC.
+        current_time = get_utc_timestamp()
 
         # Updating Email table after sending Email
         if action == 'reject':
@@ -1831,15 +1837,20 @@ def sales_order_email_process_approval_and_reject(request_id):
                 cursor.execute(sql_approval_update, approval_status, request_id, request_id)
 
                 # Perform SQL UPDATE before sending email
+                approved_date_assignment = ",\n                    [Approved Date] = ?" if action == 'approve' else ""
                 sql = f"""
                     UPDATE {SALES_ORDER_EMAIL_TABLE}
                     SET [Emaill Status] = ?,
                     [User Data] = ?,
                     [Timestamps] = ?,
-                    [Reason] = ?
+                    [Reason] = ?{approved_date_assignment}
                     WHERE [No_] = ?
                 """
-                cursor.execute(sql, email_status, device_string, current_time, reason, request_id)
+                email_update_params = [email_status, device_string, current_time, reason]
+                if action == 'approve':
+                    email_update_params.append(current_time)
+                email_update_params.append(request_id)
+                cursor.execute(sql, *email_update_params)
         
                 sql_status_update = f"""
                   UPDATE {SALES_ORDER_MAIN}

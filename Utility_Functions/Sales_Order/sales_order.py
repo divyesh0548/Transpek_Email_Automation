@@ -1,6 +1,6 @@
 from Utility_Functions.config.constants import SALES_ORDER_ITEMS_TABLE, SALES_ORDER_EMAIL_TABLE, SALES_ORDER_GST, SALES_ORDER_MAIN, SALES_PERSON_TABLE, SALES_ORDER_SHIPMENT_TABLE, SALES_ORDER_TPK_DETAILS_TABLE, SALES_ORDER_SHIP_TO_ADDRESS_TABLE, SALES_ORDER_CUSTOMER_TABLE, SALES_ORDER_SECONDARY_ITEMS_TABLE, APPROVAL_ENTRY_TABLE, COUNTRY_REGION_CODES_TABLE, TRANSPORT_METHOD_CODE_TABLE, PAYMENT_TERMS_CODE_TABLE, SHIPMENT_METHOD_TABLE, ENTRY_EXIT_POINTS_TABLE, CODE_CITY_TABLE
 from Utility_Functions.config.database import get_odbc_connection_string, row_to_dict, get_table_schema, get_engine, get_state_info
-from Utility_Functions.config.utility_functions import extract_name_from_email, smtp_send_message
+from Utility_Functions.config.utility_functions import extract_name_from_email, format_utc_timestamp_as_ist, get_utc_timestamp, smtp_send_message
 import pyodbc
 import uuid
 from datetime import datetime
@@ -360,7 +360,7 @@ def check_sales_order_pending_emails():
                         print(f"✓ Header Data prepared {header_data}")
                         print(f"✓ Line Items: {len(items_list)} items")
 
-                        current_time = str(datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])[:255]
+                        current_time = get_utc_timestamp()
 
                         approver_email_id = email_row[1]
 
@@ -677,7 +677,7 @@ def check_sales_order_pending_emails():
                         print(f" Header Data : {format(header_data)}")
                         print(f" Line Items: {items_data}")
 
-                        current_time = str(datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])[:255]
+                        current_time = get_utc_timestamp()
 
                         approver_email_id = email_row[1]
 
@@ -920,6 +920,8 @@ def send_sales_order_response_email_to_customer(request_id, response_status, sta
         msg['To'] = creator_email
         msg['Subject'] = f"Response for Document {request_id}"
         
+        response_time_ist = format_utc_timestamp_as_ist(timestamp)
+
         # Create email body
         body_html = f"""
         <html>
@@ -930,7 +932,7 @@ def send_sales_order_response_email_to_customer(request_id, response_status, sta
             <tr><td><strong>Document No:</strong></td><td>{request_id}</td></tr>
             <tr><td><strong>Response:</strong></td><td style='color: {"green" if "Approved" in response_status else "red"}'>{response_status}</td></tr>
             {f"<tr><td><strong>Reason:</strong></td><td>{reason}</td></tr>" if reason else ""}
-            <tr><td><strong>Response Time:</strong></td><td>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</td></tr>
+            <tr><td><strong>Response Time:</strong></td><td>{response_time_ist}</td></tr>
         </table>
         <p>Best regards,<br>
         Transpek System</p>

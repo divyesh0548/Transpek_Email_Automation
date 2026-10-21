@@ -2,9 +2,31 @@ import os
 import time
 import socket
 import smtplib
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+
+
+IST_TIMEZONE = timezone(timedelta(hours=5, minutes=30), name="IST")
+
+
+def get_utc_timestamp():
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def format_utc_timestamp_as_ist(value):
+    if isinstance(value, str):
+        timestamp_value = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    elif isinstance(value, datetime):
+        timestamp_value = value
+    else:
+        raise ValueError("Timestamp must be a datetime or ISO-8601 string")
+
+    if timestamp_value.tzinfo is None:
+        timestamp_value = timestamp_value.replace(tzinfo=timezone.utc)
+
+    return timestamp_value.astimezone(IST_TIMEZONE).strftime("%Y-%m-%d %H:%M:%S IST")
 
 
 def extract_name_from_email(email):
