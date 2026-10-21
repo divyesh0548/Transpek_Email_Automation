@@ -1440,7 +1440,8 @@ def purchase_email_process_approval_and_reject(request_id):
                 approval_status = 3 if action == 'reject' else 4
                 sql_approval_update = f"""
                     UPDATE {APPROVAL_ENTRY_TABLE}
-                    SET [Status] = ?
+                    SET [Status] = ?,
+                        [Last Date-Time Modified] = GETUTCDATE()
                     WHERE [Document No_] = ?
                       AND [Entry No_] = (
                         SELECT MAX([Entry No_])
@@ -1847,7 +1848,8 @@ def sales_order_email_process_approval_and_reject(request_id):
                 approval_status = 3 if action == 'reject' else 4
                 sql_approval_update = f"""
                     UPDATE {APPROVAL_ENTRY_TABLE}
-                    SET [Status] = ?
+                    SET [Status] = ?,
+                        [Last Date-Time Modified] = GETUTCDATE()
                     WHERE [Document No_] = ?
                       AND [Entry No_] = (
                         SELECT MAX([Entry No_])
