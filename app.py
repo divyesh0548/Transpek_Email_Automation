@@ -168,8 +168,8 @@ def _get_latest_approval_entry_approver(cursor, document_no):
     """
     cursor.execute(query, document_no, document_no)
     row = cursor.fetchone()
-    if not row:
-        raise ValueError(f"No approval entry found for document: {document_no}")
+    if not row or row[0] is None or not str(row[0]).strip():
+        raise ValueError(f"No Approver ID found in the latest approval entry for document: {document_no}")
     return row[0]
 
 
@@ -1366,16 +1366,20 @@ def purchase_email_process_approval_and_reject(request_id):
         if is_email_otp_required():
             entered_otp = request.form.get("otp", "").strip()
             if not entered_otp:
+                print(f"WARNING: Purchase {action} stopped for {request_id}: OTP was not provided")
                 return jsonify({"status": "Error", "success": False, "message": "OTP is required."}), 400
 
             purchase_for_otp = get_purchase_request_data_by_id(request_id=request_id)
             if not purchase_for_otp or not purchase_for_otp.get("email_data"):
+                print(f"WARNING: Purchase {action} stopped: document {request_id} was not found")
                 return jsonify({"status": "Error", "success": False, "message": "Purchase request not found."}), 400
             po_approver = (purchase_for_otp["email_data"].get("Approver Mail ID") or "").strip()
             if not po_approver:
+                print(f"WARNING: Purchase {action} stopped for {request_id}: approver email was not found")
                 return jsonify({"status": "Error", "success": False, "message": "Approver email not found."}), 400
             ok_otp, otp_msg, otp_reason = verify_otp_from_session(po_approver, request_id, entered_otp)
             if not ok_otp:
+                print(f"WARNING: Purchase {action} stopped for {request_id}: {otp_msg}")
                 err = {"status": "Error", "success": False, "message": otp_msg}
                 if otp_reason:
                     err["reason"] = otp_reason
@@ -1411,15 +1415,6 @@ def purchase_email_process_approval_and_reject(request_id):
         else:
             raise ValueError('Invalid action')
         approved_date_assignment = ",\n                  [Approved Date] = ?" if action == 'approve' else ""
-        sql = f"""
-              UPDATE {PURCHASE_EMAIL_TABLE}
-              SET [Emaill Status] = ?,
-                  [Reason] = ?,
-                  [Timestamps] = ?,
-                  [User Data] = ?,
-                  [Approved By] = ?{approved_date_assignment}
-              WHERE [No_] = ?
-              """       
         sql_status_update = f"""
               UPDATE {PURCHASE_HEADER_MAIN}
               SET [Status] = ?
@@ -1431,12 +1426,25 @@ def purchase_email_process_approval_and_reject(request_id):
             with pyodbc.connect(get_odbc_connection_string(), timeout=30) as conn:
                 cursor = conn.cursor()
                 approved_by = _get_latest_approval_entry_approver(cursor, request_id)
+                sql = f"""
+                      UPDATE {PURCHASE_EMAIL_TABLE}
+                      SET [Emaill Status] = ?,
+                          [Reason] = ?,
+                          [Timestamps] = ?,
+                          [User Data] = ?,
+                          [Approved By] = ?{approved_date_assignment}
+                      WHERE [No_] = ?
+                      """
                 email_update_params = [email_status, reason_val, current_time, device_string, approved_by]
                 if action == 'approve':
                     email_update_params.append(current_time)
                 email_update_params.append(request_id)
                 cursor.execute(sql, *email_update_params)
+                if cursor.rowcount == 0:
+                    raise ValueError(f"Purchase email row not found for document: {request_id}")
                 cursor.execute(sql_status_update, status, request_id)
+                if cursor.rowcount == 0:
+                    raise ValueError(f"Purchase header row not found for document: {request_id}")
                 approval_status = 3 if action == 'reject' else 4
                 sql_approval_update = f"""
                     UPDATE {APPROVAL_ENTRY_TABLE}
@@ -1450,6 +1458,8 @@ def purchase_email_process_approval_and_reject(request_id):
                       )
                 """
                 cursor.execute(sql_approval_update, approval_status, request_id, request_id)
+                if cursor.rowcount == 0:
+                    raise ValueError(f"Latest approval entry not found for document: {request_id}")
 
 
                 # Delete restriction records if action is not reject
@@ -1494,21 +1504,30 @@ def purchase_email_process_approval_and_reject(request_id):
                     args=[request_id, 1]  # Initial attempt
                 )
 
-            send_purchase_response_email_to_creator(request_id, email_status, reason, current_time)
+            email_sent = send_purchase_response_email_to_creator(
+                request_id, email_status, reason, current_time
+            )
+            if not email_sent:
+                print(f"WARNING: Purchase decision saved, but response email failed for {request_id}")
 
         except Exception as insert_error:
-            print(f"Error updating email status: {insert_error}")
+            print(f"Error processing purchase {action} for {request_id}: {insert_error}")
+            import traceback
+            traceback.print_exc()
             return jsonify({"status": "Error", "success": False, "error": str(insert_error)}), 500
 
         if is_email_otp_required() and po_approver:
             clear_pending_otp(CHANNEL_PURCHASE_ORDER, action, request_id, cache_identity=po_approver)
-        response_data = {"status": email_status, "success": True, "req_id": request_id, "timestamp": full_timestamp, "reason": reason, "client_details": client_details, "approver_machine_details": approver_machine_details}
+        response_data = {"status": email_status, "success": True, "email_sent": email_sent, "req_id": request_id, "timestamp": full_timestamp, "reason": reason, "client_details": client_details, "approver_machine_details": approver_machine_details}
 
         return jsonify(response_data)
         
     except Exception as e:
+        print(f"ERROR: Unexpected purchase decision failure for {request_id}: {e}")
+        import traceback
+        traceback.print_exc()
         response_data = {"status": "Error", "success": False, "error": str(e)}
-        return jsonify(response_data)
+        return jsonify(response_data), 500
 
 
 
@@ -1858,6 +1877,8 @@ def sales_order_email_process_approval_and_reject(request_id):
                       )
                 """
                 cursor.execute(sql_approval_update, approval_status, request_id, request_id)
+                if cursor.rowcount == 0:
+                    raise ValueError(f"Latest approval entry not found for document: {request_id}")
 
                 # Perform SQL UPDATE before sending email
                 approved_date_assignment = ",\n                    [Approved Date] = ?" if action == 'approve' else ""
@@ -1875,13 +1896,17 @@ def sales_order_email_process_approval_and_reject(request_id):
                     email_update_params.append(current_time)
                 email_update_params.append(request_id)
                 cursor.execute(sql, *email_update_params)
+                if cursor.rowcount == 0:
+                    raise ValueError(f"Sales email row not found for document: {request_id}")
         
                 sql_status_update = f"""
                   UPDATE {SALES_ORDER_MAIN}
                   SET [Status] = ?
                   WHERE [No_] = ?
-                  """  
+                """  
                 cursor.execute(sql_status_update, status, request_id)
+                if cursor.rowcount == 0:
+                    raise ValueError(f"Sales header row not found for document: {request_id}")
 
                 # Delete restriction records if action is not reject
                 if action != 'reject':

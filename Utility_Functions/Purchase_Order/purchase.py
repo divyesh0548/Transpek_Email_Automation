@@ -381,6 +381,7 @@ def send_purchase_approval_email(data, line_items):
 def send_purchase_response_email_to_creator(request_id, response_status, reason=None, timestamp=None):
     """Send response email to creator after approval/rejection"""
     try:
+        creator_email = None
         sql = f"""SELECT [Creator Mail ID] FROM {PURCHASE_EMAIL_TABLE} WHERE [No_] = ?"""
         try:
             with pyodbc.connect(get_odbc_connection_string(), timeout=30) as conn:
@@ -392,6 +393,10 @@ def send_purchase_response_email_to_creator(request_id, response_status, reason=
 
         except Exception as e:
             print(f"Error occurred while fetching creator email: {e}")
+            return False
+
+        if not creator_email or not str(creator_email).strip():
+            print(f"ERROR: Creator email not found for purchase document {request_id}")
             return False
 
         smtp_server = os.getenv("SMTP_SERVER")
@@ -434,8 +439,12 @@ def send_purchase_response_email_to_creator(request_id, response_status, reason=
         # Send email (with DNS/network retries)
         try:
             smtp_send_message(msg)
-        
-            # Email sent successfully, perform SQL UPDATE
+        except Exception as e:
+            print(f"ERROR: Failed to send purchase response email for {request_id}: {e}")
+            return False
+
+        try:
+            # Email sent successfully, update the response flag.
             sql = f"""
                 UPDATE {PURCHASE_EMAIL_TABLE}
                 SET [Response Mail Send] = ?
@@ -446,7 +455,7 @@ def send_purchase_response_email_to_creator(request_id, response_status, reason=
                 cursor.execute(sql, 1, request_id)
                 conn.commit()
         except Exception as e:
-            print("An error occurred:", e)
+            print(f"WARNING: Email sent but Response Mail Send update failed for {request_id}: {e}")
         
         print(f"✅ Response email sent to creator {creator_email} for document {request_id}")
         return True
