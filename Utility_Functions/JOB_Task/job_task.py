@@ -378,7 +378,7 @@ def send_job_card_approval_email(data, line_items):
             </a>
         </div>
         <p>Best regards,<br>
-        Transpek System</p>
+        Transpek Industry Ltd.</p>
         </body>
         </html>
         """
@@ -468,7 +468,7 @@ def send_job_card_response_email_to_customer(request_id, response_status, reason
             <tr><td><strong>Response Time:</strong></td><td>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</td></tr>
         </table>
         <p>Best regards,<br>
-        Transpek System</p>
+        Transpek Industry Ltd.</p>
         </body>
         </html>
         """

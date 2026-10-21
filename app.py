@@ -155,6 +155,24 @@ def _im_hod_approver_email(requisition: dict) -> str:
     return (requisition.get("Approver Mail ID") or requisition.get("approver_mailid") or "").strip()
 
 
+def _get_latest_approval_entry_approver(cursor, document_no):
+    query = f"""
+        SELECT [Approver ID]
+        FROM {APPROVAL_ENTRY_TABLE}
+        WHERE [Document No_] = ?
+          AND [Entry No_] = (
+              SELECT MAX([Entry No_])
+              FROM {APPROVAL_ENTRY_TABLE}
+              WHERE [Document No_] = ?
+          )
+    """
+    cursor.execute(query, document_no, document_no)
+    row = cursor.fetchone()
+    if not row:
+        raise ValueError(f"No approval entry found for document: {document_no}")
+    return row[0]
+
+
 def _render_otp_send_failed():
     return render_template_string("""
     <html><body style="font-family: Arial, sans-serif; text-align: center; margin-top: 50px;">
@@ -1398,7 +1416,8 @@ def purchase_email_process_approval_and_reject(request_id):
               SET [Emaill Status] = ?,
                   [Reason] = ?,
                   [Timestamps] = ?,
-                  [User Data] = ?{approved_date_assignment}
+                  [User Data] = ?,
+                  [Approved By] = ?{approved_date_assignment}
               WHERE [No_] = ?
               """       
         sql_status_update = f"""
@@ -1411,7 +1430,8 @@ def purchase_email_process_approval_and_reject(request_id):
         try:
             with pyodbc.connect(get_odbc_connection_string(), timeout=30) as conn:
                 cursor = conn.cursor()
-                email_update_params = [email_status, reason_val, current_time, device_string]
+                approved_by = _get_latest_approval_entry_approver(cursor, request_id)
+                email_update_params = [email_status, reason_val, current_time, device_string, approved_by]
                 if action == 'approve':
                     email_update_params.append(current_time)
                 email_update_params.append(request_id)
@@ -1823,6 +1843,7 @@ def sales_order_email_process_approval_and_reject(request_id):
         try:
             with pyodbc.connect(get_odbc_connection_string(), timeout=30) as conn:
                 cursor = conn.cursor()
+                approved_by = _get_latest_approval_entry_approver(cursor, request_id)
                 approval_status = 3 if action == 'reject' else 4
                 sql_approval_update = f"""
                     UPDATE {APPROVAL_ENTRY_TABLE}
@@ -1843,10 +1864,11 @@ def sales_order_email_process_approval_and_reject(request_id):
                     SET [Emaill Status] = ?,
                     [User Data] = ?,
                     [Timestamps] = ?,
-                    [Reason] = ?{approved_date_assignment}
+                    [Reason] = ?,
+                    [Approved By] = ?{approved_date_assignment}
                     WHERE [No_] = ?
                 """
-                email_update_params = [email_status, device_string, current_time, reason]
+                email_update_params = [email_status, device_string, current_time, reason, approved_by]
                 if action == 'approve':
                     email_update_params.append(current_time)
                 email_update_params.append(request_id)

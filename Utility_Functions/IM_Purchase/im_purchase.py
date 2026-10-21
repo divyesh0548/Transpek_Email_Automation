@@ -722,7 +722,7 @@ def send_approval_email(data, line_item_data):
             </a>
         </div>
         <p>Best regards,<br>
-        Transpek System</p>
+        Transpek Industry Ltd.</p>
         </body>
         </html>
         """
@@ -823,7 +823,7 @@ def send_accountant_email(data, line_item_data, acc1_email, acc2_email):
             </a>
         </div>
         <p>Best regards,<br>
-        Transpek System</p>
+        Transpek Industry Ltd.</p>
         </body>
         </html>
         """
@@ -893,7 +893,7 @@ def send_response_email_to_creator(purchase_req, response_status, reason=None):
             <tr><td><strong>Response Time:</strong></td><td>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</td></tr>
         </table>
         <p>Best regards,<br>
-        Transpek System</p>
+        Transpek Industry Ltd.</p>
         </body>
         </html>
         """
@@ -956,7 +956,7 @@ def send_accountant_response_email_to_creator(purchase_req, response_status, rea
             <tr><td><strong>Response Time:</strong></td><td>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</td></tr>
         </table>
         <p>Best regards,<br>
-        Transpek System</p>
+        Transpek Industry Ltd.</p>
         </body>
         </html>
         """

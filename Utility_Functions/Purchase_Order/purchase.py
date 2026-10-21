@@ -342,7 +342,7 @@ def send_purchase_approval_email(data, line_items):
             </a>
         </div>
         <p>Best regards,<br>
-        Transpek System</p>
+        Transpek Industry Ltd.</p>
         </body>
         </html>
         """
@@ -424,7 +424,7 @@ def send_purchase_response_email_to_creator(request_id, response_status, reason=
             <tr><td><strong>Response Time:</strong></td><td>{response_time_ist}</td></tr>
         </table>
         <p>Best regards,<br>
-        Transpek System</p>
+        Transpek Industry Ltd.</p>
         </body>
         </html>
         """
