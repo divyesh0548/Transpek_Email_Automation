@@ -1,1 +1,3 @@
-Check the timestamp update of last modified column in approval entry table.  Verify this.
+Apply the GST logic in sales order as same as purchase order.
+
+Also check in Im purchase requisition.

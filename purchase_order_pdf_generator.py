@@ -49,19 +49,6 @@ def get_signature_details():
         'company_signatory_line': f'For Transpek Industry Limited'
     }
 
-def get_standard_remarks():
-    """
-    Get standard remarks that appear in purchase orders.
-    These can be customized or made dynamic if needed.
-    """
-    return {
-        'indent_no': 'MG/IN:24251644',
-        'indent_date': '24.03.25',
-        'department': 'TQM',
-        'delivery_location': 'DELIVERY AT LILLERIA 1038',
-        'formatted_remarks': 'INDENT NO:MG/IN:24251644  DATED:24.03.25 DEP: TQM'
-    }
-
 def generate_purchase_order_pdf(header_data: Dict, line_data: List[Dict], template_path: str = "assets/Purchase_Order_Template.html", output_filename: str = None):
     # Prepare template data
     template_data = prepare_Purchase_Order_Template_data(header_data, line_data)
@@ -115,16 +102,30 @@ def prepare_Purchase_Order_Template_data(header_data: Dict, line_data: List[Dict
     # Get fixed company details
     buyer_company = get_buyer_company_details()
     signature_details = get_signature_details()
-    standard_remarks = get_standard_remarks()
     
     # Calculate totals
     basic_total = sum(float(item.get('Amount', 0)) for item in line_data)
-    sgst_rate = 9.0  # 9% SGST
-    cgst_rate = 9.0  # 9% CGST
-    
-    sgst_amount = basic_total * (sgst_rate / 100)
+    gst_group_code = str(header_data.get('GST Group code') or '').strip()
+    show_gst = bool(gst_group_code)
+    if show_gst:
+        gst_jurisdiction_type = int(header_data['GST Jurisdiction Type'])
+        gst_rate = float(header_data['GST Rate'])
+        if gst_jurisdiction_type not in (0, 1):
+            raise ValueError(f"Unsupported GST Jurisdiction Type: {gst_jurisdiction_type}")
+        if not 0 <= gst_rate <= 100:
+            raise ValueError(f"Invalid GST rate: {gst_rate}")
+    else:
+        gst_jurisdiction_type = None
+        gst_rate = 0.0
+
+    cgst_rate = gst_rate / 2 if show_gst and gst_jurisdiction_type == 0 else 0.0
+    sgst_rate = cgst_rate
+    igst_rate = gst_rate if show_gst and gst_jurisdiction_type == 1 else 0.0
+
     cgst_amount = basic_total * (cgst_rate / 100)
-    grand_total = basic_total + sgst_amount + cgst_amount
+    sgst_amount = basic_total * (sgst_rate / 100)
+    igst_amount = basic_total * (igst_rate / 100)
+    grand_total = basic_total + cgst_amount + sgst_amount + igst_amount
     
     # Prepare line items with proper formatting
     prepared_line_items = []
@@ -132,6 +133,7 @@ def prepare_Purchase_Order_Template_data(header_data: Dict, line_data: List[Dict
         prepared_item = {
             'sr_no': index,
             'description': item.get('Description', ''),
+            'hsn_code': item.get('HSN_SAC Code'),
             'quantity': format_number(item.get('Quantity', 0)),
             'unit_of_measure': item.get('Unit of Measure', 'NOS'),
             'direct_unit_cost': format_currency(item.get('Direct Unit Cost', 0)),
@@ -151,7 +153,9 @@ def prepare_Purchase_Order_Template_data(header_data: Dict, line_data: List[Dict
         'vendor_post_code': header_data.get('Buy-from Post Code', ''),
         'vendor_state': header_data.get('State', ''),
         'vendor_gst_no': header_data.get('Vendor GST Reg_ No_', ''),
-        'payment_terms': header_data.get('Payment Terms Code', ''),
+        'payment_terms': header_data.get('Payment Terms Description', ''),
+        'shipment_method': header_data.get('Shipment Method', ''),
+        'transaction_specification': header_data.get('Transaction Specification', ''),
         'creator_email': header_data.get('Creator Mail ID', ''),
         'approver_email': header_data.get('Approver Mail ID', ''),
         
@@ -176,22 +180,25 @@ def prepare_Purchase_Order_Template_data(header_data: Dict, line_data: List[Dict
         'authorized_signatory_designation': signature_details['authorized_signatory_designation'],
         'company_signatory_line': signature_details['company_signatory_line'],
         
-        # Fixed Standard Remarks
-        'remarks_indent_no': standard_remarks['indent_no'],
-        'remarks_indent_date': standard_remarks['indent_date'],
-        'remarks_department': standard_remarks['department'],
-        'remarks_delivery_location': standard_remarks['delivery_location'],
-        'remarks_formatted': standard_remarks['formatted_remarks'],
+        # Purchase comments
+        'purchase_comments': header_data.get('Purchase Comments', ''),
         
         # Line items
         'line_items': prepared_line_items,
         
         # Totals
         'basic_total': format_currency(basic_total),
-        'sgst_rate': sgst_rate,
-        'sgst_amount': format_currency(sgst_amount),
+        'gst_jurisdiction_type': gst_jurisdiction_type,
+        'show_gst': show_gst,
         'cgst_rate': cgst_rate,
+        'cgst_rate_display': f"{cgst_rate:g}",
+        'sgst_amount': format_currency(sgst_amount),
+        'sgst_rate': sgst_rate,
+        'sgst_rate_display': f"{sgst_rate:g}",
         'cgst_amount': format_currency(cgst_amount),
+        'igst_rate': igst_rate,
+        'igst_rate_display': f"{igst_rate:g}",
+        'igst_amount': format_currency(igst_amount),
         'grand_total': format_currency(grand_total),
         'amount_in_words': convert_number_to_words(grand_total),
         
@@ -200,8 +207,6 @@ def prepare_Purchase_Order_Template_data(header_data: Dict, line_data: List[Dict
         'copy_type': 'SUPPLIER COPY',  # Can be made dynamic if needed
         
         # Terms and conditions fields (can be made dynamic if needed)
-        'delivery_terms': '',  # Usually empty as per PDF
-        'delivery_instructions': '',  # Usually empty as per PDF
         'specification_no': '',  # Usually empty as per PDF
         'version_name': '',  # Usually empty as per PDF
         'version_date': '',  # Usually empty as per PDF
@@ -392,6 +397,8 @@ def get_template_data_for_testing():
         'State': 'Gujarat',
         'Vendor GST Reg_ No_': '24ALNPP7919B1ZY',
         'Payment Terms Code': '30 Days Credit',
+        'GST Jurisdiction Type': 0,
+        'GST Rate': 28.0,
         'Approver Mail ID': 'approver@transpek.com',
         'Creator Mail ID': 'creator@transpek.com'
     }
@@ -422,8 +429,7 @@ def get_all_fixed_data():
     """
     return {
         'buyer_company': get_buyer_company_details(),
-        'signatures': get_signature_details(),
-        'remarks': get_standard_remarks()
+        'signatures': get_signature_details()
     }
 
 # Example usage and testing
@@ -441,6 +447,8 @@ if __name__ == "__main__":
         'State': 'Gujarat',
         'Vendor GST Reg_ No_': '24ALNPP7919B1ZY',
         'Payment Terms Code': '30 Days Credit',
+        'GST Jurisdiction Type': 0,
+        'GST Rate': 28.0,
         'Approver Mail ID': 'approver@transpek.com',
         'Creator Mail ID': 'creator@transpek.com'
     }

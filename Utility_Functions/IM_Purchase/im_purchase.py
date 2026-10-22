@@ -1,8 +1,8 @@
 
 from Utility_Functions.config.constants import PURCHASE_REQ_LINE_TABLE, PURCHASE_REQ_TABLE
-from Utility_Functions.config.database import get_odbc_connection_string, get_engine, row_to_dict, get_table_schema
+from Utility_Functions.config.database import execute_update_with_retry, get_odbc_connection_string, get_engine, row_to_dict, get_table_schema
 import pyodbc
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timezone
 from sqlalchemy import text
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -11,7 +11,7 @@ import json
 import socket
 import uuid
 from Utility_Functions.config.secure import encrypt, decrypt
-from Utility_Functions.config.utility_functions import smtp_send_message
+from Utility_Functions.config.utility_functions import format_utc_timestamp_as_ist, get_utc_timestamp, run_with_retry, smtp_send_message
 
 def get_status_text(status_code):
     """Convert status code to text - now handles both numeric and text status"""
@@ -320,7 +320,7 @@ def check_IM_Purchase_pending_emails():
                     print(f"Header Data : {header_data}")
                     print(f"Line Items : {items_list}")
                     print(f"Processing data with No : {no_}")
-                    current_time = str(datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])[:255]
+                    current_time = get_utc_timestamp()
 
 
                     if approver_email and approver_email.strip():
@@ -335,8 +335,11 @@ def check_IM_Purchase_pending_emails():
                                     [Timestamps] = ?
                                 WHERE [No_] = ?
                                 """
-                                cursor.execute(update_query, (current_time, no_))
-                                conn.commit()
+                                execute_update_with_retry(
+                                    update_query,
+                                    (current_time, no_),
+                                    operation_name=f"IM HOD approval-email status update for {no_}",
+                                )
                                 print(f"✅ Successfully processed IM Purchase No_: {no_}")
                             else:
                                 print(f"❌ Email sending failed for IM Purchase No_: {no_}")
@@ -579,7 +582,7 @@ def check_IM_Purchase_pending_emails_for_accountants():
                     print(f"Header Data : {header_data}")
                     print(f"Line Items : {items_list}")
                     print(f"Processing data with No : {no_}")
-                    current_time = str(datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])[:255]
+                    current_time = get_utc_timestamp()
 
                     # Send email to accountants then update status
                     try:
@@ -606,9 +609,11 @@ def check_IM_Purchase_pending_emails_for_accountants():
                                     OR [Emaill Status] = 'Pending'
                                 )
                         """
-                        cursor.execute(update_query, (current_time, no_))
-                        rows_updated = cursor.rowcount
-                        conn.commit()
+                        rows_updated = execute_update_with_retry(
+                            update_query,
+                            (current_time, no_),
+                            operation_name=f"IM accountant-email status update for {no_}",
+                        )
 
                         if rows_updated == 0:
                             print(
@@ -880,6 +885,9 @@ def send_response_email_to_creator(purchase_req, response_status, reason=None):
         is_approved = "approved" in response_status.lower()
         status_text = "Approved by HOD" if is_approved else "Rejected by HOD"
         
+        response_timestamp = purchase_req.get('Timestamps') or purchase_req.get('timestemp') or get_utc_timestamp()
+        response_time_ist = format_utc_timestamp_as_ist(response_timestamp)
+
         # Create email body
         body_html = f"""
         <html>
@@ -890,7 +898,7 @@ def send_response_email_to_creator(purchase_req, response_status, reason=None):
             <tr><td><strong>Document No:</strong></td><td>{purchase_req.get('No_', '')}</td></tr>
             <tr><td><strong>Response:</strong></td><td style='color: {"green" if "Approved" in response_status else "red"}'>{status_text}</td></tr>
             {f"<tr><td><strong>Reason:</strong></td><td>{reason}</td></tr>" if reason else ""}
-            <tr><td><strong>Response Time:</strong></td><td>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</td></tr>
+            <tr><td><strong>Response Time:</strong></td><td>{response_time_ist}</td></tr>
         </table>
         <p>Best regards,<br>
         Transpek Industry Ltd.</p>
@@ -943,6 +951,9 @@ def send_accountant_response_email_to_creator(purchase_req, response_status, rea
         status_text = "Approved by Accountant" if is_approved else "Rejected by Accountant"
         status_color = "green" if is_approved else "red"
         
+        response_timestamp = purchase_req.get('Timestamps') or purchase_req.get('timestemp') or get_utc_timestamp()
+        response_time_ist = format_utc_timestamp_as_ist(response_timestamp)
+
         # Create email body
         body_html = f"""
         <html>
@@ -953,7 +964,7 @@ def send_accountant_response_email_to_creator(purchase_req, response_status, rea
             <tr><td><strong>Document No:</strong></td><td>{purchase_req.get('No_', '')}</td></tr>
             <tr><td><strong>Response:</strong></td><td style='color: {status_color}'>{status_text}</td></tr>
             {f"<tr><td><strong>Reason:</strong></td><td>{reason}</td></tr>" if reason else ""}
-            <tr><td><strong>Response Time:</strong></td><td>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</td></tr>
+            <tr><td><strong>Response Time:</strong></td><td>{response_time_ist}</td></tr>
         </table>
         <p>Best regards,<br>
         Transpek Industry Ltd.</p>
@@ -1016,25 +1027,30 @@ def requisition_line_items_approval_update(order_no):
     - [Line Status] = 1
     """
     try:
-        with pyodbc.connect(get_odbc_connection_string(), timeout=30) as conn:
-            cursor = conn.cursor()
+        def update_line_items():
+            with pyodbc.connect(get_odbc_connection_string(), timeout=30) as conn:
+                cursor = conn.cursor()
+                update_query = f"""
+                    UPDATE {PURCHASE_REQ_LINE_TABLE}
+                    SET [Approved for Process] = 1,
+                        [Line Status] = 1
+                    WHERE [Document No_] = ?
+                """
+                cursor.execute(update_query, (order_no,))
+                updated_count = cursor.rowcount
+                conn.commit()
+                return updated_count
 
-            update_query = f"""
-                UPDATE {PURCHASE_REQ_LINE_TABLE}
-                SET [Approved for Process] = 1,
-                    [Line Status] = 1
-                WHERE [Document No_] = ?
-            """
-            cursor.execute(update_query, (order_no,))
-            conn.commit()
-
-            updated_count = cursor.rowcount
-            # Some ODBC drivers return -1 for rowcount; treat that as "executed".
-            if updated_count == 0:
-                print(f"[DEBUG] No line items found for order_no: {order_no}")
-                return False
-            print(f"[DEBUG] Updated {updated_count} line items for order_no: {order_no}")
-            return True
+        updated_count = run_with_retry(
+            update_line_items,
+            operation_name=f"IM purchase line update for {order_no}",
+        )
+        # Some ODBC drivers return -1 for rowcount; treat that as "executed".
+        if updated_count == 0:
+            print(f"[DEBUG] No line items found for order_no: {order_no}")
+            return False
+        print(f"[DEBUG] Updated {updated_count} line items for order_no: {order_no}")
+        return True
     except Exception as e:
         print(f"[ERROR] Failed to update line items for order_no {order_no}: {e}")
         import traceback
@@ -1218,10 +1234,16 @@ def update_purchase_request_status_with_text(request_id, int_status, text_status
         query = f"UPDATE {PURCHASE_REQ_TABLE} SET {', '.join(updates)} WHERE [No_] = :request_id"
         
         engine = get_engine()
-        with engine.connect() as connection:
-            result = connection.execute(text(query), params)
-            connection.commit()
-            update_success = result.rowcount > 0
+
+        def update_header():
+            with engine.begin() as connection:
+                result = connection.execute(text(query), params)
+                return result.rowcount > 0
+
+        update_success = run_with_retry(
+            update_header,
+            operation_name=f"IM purchase header update for {request_id}",
+        )
         
         if update_success:
 
@@ -1245,18 +1267,28 @@ def update_purchase_request_status_with_text(request_id, int_status, text_status
                         # Update Response Mail Send status
                         if col_map.get('Response Mail Send'):
                             response_update_query = f"UPDATE {PURCHASE_REQ_TABLE} SET [{col_map['Response Mail Send']}] = 'sent' WHERE [No_] = :request_id"
-                            with engine.connect() as conn:
-                                conn.execute(text(response_update_query), {"request_id": str(request_id)})
-                                conn.commit()
+                            def mark_response_sent():
+                                with engine.begin() as conn:
+                                    conn.execute(text(response_update_query), {"request_id": str(request_id)})
+
+                            run_with_retry(
+                                mark_response_sent,
+                                operation_name=f"IM purchase response-mail status update for {request_id}",
+                            )
                             print(f"DEBUG: Updated Response Mail Send to 'sent'")
                     else:
                         print(f"DEBUG: Failed to send response email to creator")
                         # Update Response Mail Send status to failed
                         if col_map.get('Response Mail Send'):
                             response_update_query = f"UPDATE {PURCHASE_REQ_TABLE} SET [{col_map['Response Mail Send']}] = 'failed' WHERE [No_] = :request_id"
-                            with engine.connect() as conn:
-                                conn.execute(text(response_update_query), {"request_id": str(request_id)})
-                                conn.commit()
+                            def mark_response_failed():
+                                with engine.begin() as conn:
+                                    conn.execute(text(response_update_query), {"request_id": str(request_id)})
+
+                            run_with_retry(
+                                mark_response_failed,
+                                operation_name=f"IM purchase failed-mail status update for {request_id}",
+                            )
                             print(f"DEBUG: Updated Response Mail Send to 'failed'")
                 else:
                     print(f"DEBUG: No creator email found for request {request_id}")

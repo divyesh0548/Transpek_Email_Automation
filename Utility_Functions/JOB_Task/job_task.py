@@ -1,5 +1,5 @@
 from Utility_Functions.config.constants import JOB_WORK_ITEMS_TABLE, JOB_CARD_MAIN_TABLE, JOB_CARD_SECONDARY_TABLE, JOB_TASK_COSTING_TABLE
-from Utility_Functions.config.database import get_odbc_connection_string, row_to_dict, get_table_schema, get_engine
+from Utility_Functions.config.database import execute_update_with_retry, get_odbc_connection_string, row_to_dict, get_table_schema, get_engine
 import pyodbc
 import uuid
 from datetime import datetime
@@ -11,7 +11,7 @@ import json
 import re
 import uuid
 from Utility_Functions.config.secure import encrypt, decrypt
-from Utility_Functions.config.utility_functions import smtp_send_message
+from Utility_Functions.config.utility_functions import format_utc_timestamp_as_ist, get_utc_timestamp, smtp_send_message
 
 # Job card columns used by check_job_task_pending_emails (see job_main_table.txt)
 _JOB_CARD_MAIN_PENDING_COLUMNS = (
@@ -269,9 +269,14 @@ def check_job_task_pending_emails():
                     print(f"Header Data : {header_data}")
                     print(f"Line Items : {Tasks_list}")
                     print(f"Processing JOB data with No : {no_}")
-                    current_time = str(datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])[:255]
+                    current_time = get_utc_timestamp()
 
                     try:
+                        email_sent = send_job_card_approval_email(header_data, Tasks_list)
+                        if not email_sent:
+                            print(f"Error sending approval email for JOB Task No_ {no_}; database not updated")
+                            continue
+
                         update_query = f"""
                          UPDATE {JOB_CARD_MAIN_TABLE}
                          SET [Email Send] = 1,
@@ -279,10 +284,11 @@ def check_job_task_pending_emails():
                              [Timestamps] = ?
                          WHERE [No_] = ?
                          """
-                        cursor.execute(update_query, (current_time,no_))
-                        conn.commit()
-
-                        send_job_card_approval_email(header_data, Tasks_list)
+                        execute_update_with_retry(
+                            update_query,
+                            (current_time, no_),
+                            operation_name=f"Job approval-email status update for {no_}",
+                        )
 
                     except Exception as e:
                         print(f"Error sending approval email for JOB Task No_ {no_}: {str(e)}")
@@ -412,13 +418,14 @@ def send_job_card_approval_email(data, line_items):
             return False
 
         print(f"✅ Approval email sent for document {data.get('No_', '')}")
+        return True
     
     except Exception as e:
         print(f"Error occured in send email function....")
         print(f"Error : {e}")
         return False
 
-def send_job_card_response_email_to_customer(request_id, response_status, reason=None):
+def send_job_card_response_email_to_customer(request_id, response_status, reason=None, timestamp=None):
     try:
         sql = f"""SELECT [Creator Mail ID] FROM {JOB_CARD_MAIN_TABLE} WHERE [No_] = ?"""
         try:
@@ -455,6 +462,8 @@ def send_job_card_response_email_to_customer(request_id, response_status, reason
         msg['To'] = creator_email
         msg['Subject'] = f"Response for Document {request_id}"
         
+        response_time_ist = format_utc_timestamp_as_ist(timestamp or get_utc_timestamp())
+
         # Create email body
         body_html = f"""
         <html>
@@ -465,7 +474,7 @@ def send_job_card_response_email_to_customer(request_id, response_status, reason
             <tr><td><strong>JOB Card No:</strong></td><td>{request_id}</td></tr>
             <tr><td><strong>Response:</strong></td><td style='color: {"green" if "Approved" in response_status else "red"}'>{response_status}</td></tr>
             {f"<tr><td><strong>Reason:</strong></td><td>{reason}</td></tr>" if reason else ""}
-            <tr><td><strong>Response Time:</strong></td><td>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</td></tr>
+            <tr><td><strong>Response Time:</strong></td><td>{response_time_ist}</td></tr>
         </table>
         <p>Best regards,<br>
         Transpek Industry Ltd.</p>
@@ -478,26 +487,25 @@ def send_job_card_response_email_to_customer(request_id, response_status, reason
         # Send email (with DNS/network retries)
         try:
             smtp_send_message(msg)
+        except Exception as e:
+            return {'success': False, 'message': f'Job response email failed: {e}'}
 
-            # Email sent successfully, perform SQL UPDATE
+        try:
             sql = f"""
                 UPDATE {JOB_CARD_MAIN_TABLE}
                 SET [Response Mail Send] = ?
                 WHERE [No_] = ?
             """
-            with pyodbc.connect(get_odbc_connection_string(), timeout=30) as conn:
-                cursor = conn.cursor()
-                cursor.execute(sql, 1, request_id)
-                conn.commit()
-
-            print(f"✅ Response email sent to creator {creator_email} for document {request_id}")
-            response= {'success': True, 'message': 'Response email sent successfully'}
-            return response
-
+            execute_update_with_retry(
+                sql,
+                (1, request_id),
+                operation_name=f"Job response-mail status update for {request_id}",
+            )
         except Exception as e:
-            error_string = str(e)
-            response= {'success': False, 'message': f'{error_string} Error in data insertion'}
-            return response
+            print(f"WARNING: Job email sent but response flag update failed for {request_id}: {e}")
+
+        print(f"✅ Response email sent to creator {creator_email} for document {request_id}")
+        return {'success': True, 'message': 'Response email sent successfully'}
         
 
         

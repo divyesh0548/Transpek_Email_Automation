@@ -1,5 +1,5 @@
 from Utility_Functions.config.constants import SALES_ORDER_ITEMS_TABLE, SALES_ORDER_EMAIL_TABLE, SALES_ORDER_GST, SALES_ORDER_MAIN, SALES_PERSON_TABLE, SALES_ORDER_SHIPMENT_TABLE, SALES_ORDER_TPK_DETAILS_TABLE, SALES_ORDER_SHIP_TO_ADDRESS_TABLE, SALES_ORDER_CUSTOMER_TABLE, SALES_ORDER_SECONDARY_ITEMS_TABLE, APPROVAL_ENTRY_TABLE, COUNTRY_REGION_CODES_TABLE, TRANSPORT_METHOD_CODE_TABLE, PAYMENT_TERMS_CODE_TABLE, SHIPMENT_METHOD_TABLE, ENTRY_EXIT_POINTS_TABLE, CODE_CITY_TABLE
-from Utility_Functions.config.database import get_odbc_connection_string, row_to_dict, get_table_schema, get_engine, get_state_info
+from Utility_Functions.config.database import execute_update_with_retry, get_odbc_connection_string, row_to_dict, get_table_schema, get_engine, get_state_info
 from Utility_Functions.config.utility_functions import extract_name_from_email, format_utc_timestamp_as_ist, get_utc_timestamp, smtp_send_message
 import pyodbc
 import uuid
@@ -365,7 +365,11 @@ def check_sales_order_pending_emails():
                         approver_email_id = email_row[1]
 
                         if approver_email_id and approver_email_id.strip():
-                            # Updating email columns
+                            email_sent = send_sales_approval_email(header_data, items_list)
+                            if not email_sent:
+                                print(f"❌ Sales approval email failed for {email_row[0]}; database not updated")
+                                continue
+
                             update_query = f"""
                              UPDATE {SALES_ORDER_EMAIL_TABLE}
                              SET [Email Send] = 1,
@@ -373,11 +377,11 @@ def check_sales_order_pending_emails():
                                  [Timestamps] = ?
                              WHERE [No_] = ?
                              """
-                            cursor.execute(update_query, (current_time, email_row[0]))
-                            conn.commit()
-
-                            # Send email
-                            send_sales_approval_email(header_data, items_list)
+                            execute_update_with_retry(
+                                update_query,
+                                (current_time, email_row[0]),
+                                operation_name=f"Domestic sales approval-email status update for {email_row[0]}",
+                            )
                             print(f"✅ Successfully processed Domestic order: {no_}")
                         else:
                             print(f"❌ Invalid Approver Email ID for Order No: {email_row[0]}")
@@ -682,7 +686,11 @@ def check_sales_order_pending_emails():
                         approver_email_id = email_row[1]
 
                         if approver_email_id and approver_email_id.strip():
-                            # Updating email columns
+                            email_sent = send_sales_approval_email(header_data, items_data)
+                            if not email_sent:
+                                print(f"❌ Sales approval email failed for {email_row[0]}; database not updated")
+                                continue
+
                             update_query = f"""
                              UPDATE {SALES_ORDER_EMAIL_TABLE}
                              SET [Email Send] = 1,
@@ -690,11 +698,11 @@ def check_sales_order_pending_emails():
                                  [Timestamps] = ?
                              WHERE [No_] = ?
                              """
-                            cursor.execute(update_query, (current_time, email_row[0]))
-                            conn.commit()
-
-                            # Send email
-                            send_sales_approval_email(header_data, items_data)
+                            execute_update_with_retry(
+                                update_query,
+                                (current_time, email_row[0]),
+                                operation_name=f"Export sales approval-email status update for {email_row[0]}",
+                            )
                             print(f"✅ Successfully processed Export order: {no_}")
                         else:
                             print(f"❌ Invalid Approver Email ID for Order No: {email_row[0]}")
@@ -873,6 +881,7 @@ def send_sales_approval_email(data, line_items):
         try:
             smtp_send_message(msg)
             print(f"✅ Approval email sent successfully for document {req_id}")
+            return True
 
         except Exception as e:
             print(f"❌ SMTP Error sending email for Document No {req_id}: {e}")
@@ -945,21 +954,23 @@ def send_sales_order_response_email_to_customer(request_id, response_status, sta
         # Send email (with DNS/network retries)
         try:
             smtp_send_message(msg)
+        except Exception as e:
+            print(f"ERROR: Sales response email failed for {request_id}: {e}")
+            return False
 
-            # Email sent successfully, perform SQL UPDATE
+        try:
             sql = f"""
                 UPDATE {SALES_ORDER_EMAIL_TABLE}
                 SET [Response Mail Send] = ?
                 WHERE [No_] = ?
             """
-            with pyodbc.connect(get_odbc_connection_string(), timeout=30) as conn:
-                cursor = conn.cursor()
-                cursor.execute(sql, 1, request_id)
-                conn.commit()
-
+            execute_update_with_retry(
+                sql,
+                (1, request_id),
+                operation_name=f"Sales response-mail status update for {request_id}",
+            )
         except Exception as e:
-            print("An error occurred:", e)
-            return False
+            print(f"WARNING: Sales email sent but response flag update failed for {request_id}: {e}")
         
         print(f"✅ Response email sent to creator {creator_email} for document {request_id}")
         return True

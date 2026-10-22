@@ -2,6 +2,7 @@ from sqlalchemy import create_engine
 import os
 import pyodbc
 from sqlalchemy import text
+from Utility_Functions.config.utility_functions import run_with_retry
 
 
 
@@ -43,6 +44,23 @@ def setup_database():
     except Exception as e:
         print(f"❌ Database connection failed: {e}")
         return False
+
+
+def execute_update_with_retry(query, params=(), operation_name="database update"):
+    def execute_update():
+        with pyodbc.connect(get_odbc_connection_string(), timeout=30) as conn:
+            try:
+                cursor = conn.cursor()
+                cursor.execute(query, params)
+                if cursor.rowcount == 0:
+                    raise ValueError(f"{operation_name} updated no rows")
+                conn.commit()
+                return cursor.rowcount
+            except Exception:
+                conn.rollback()
+                raise
+
+    return run_with_retry(execute_update, operation_name=operation_name)
     
 
 def row_to_dict(cursor, row):

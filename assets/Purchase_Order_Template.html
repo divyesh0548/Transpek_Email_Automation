@@ -387,7 +387,7 @@
             {% for item in line_items %}
             <tr>
                 <td class="center">{{ item.sr_no }}</td>
-                <td>{{ item.description }}</td>
+                <td>{{ item.description }}{% if item.hsn_code %}<br><strong>HSN Code: {{ item.hsn_code }}</strong>{% endif %}</td>
                 <td class="center">{{ item.quantity }}</td>
                 <td class="center">{{ item.unit_of_measure }}</td>
                 <td class="right">{{ item.direct_unit_cost }}</td>
@@ -409,14 +409,21 @@
                 <td class="label-col">Basic Total</td>
                 <td class="amount-col">{{ basic_total }}</td>
             </tr>
+            {% if show_gst and gst_jurisdiction_type == 1 %}
             <tr>
-                <td class="label-col">SGST {{ sgst_rate }}%</td>
+                <td class="label-col">IGST {{ igst_rate_display }}%</td>
+                <td class="amount-col">{{ igst_amount }}</td>
+            </tr>
+            {% elif show_gst %}
+            <tr>
+                <td class="label-col">SGST {{ sgst_rate_display }}%</td>
                 <td class="amount-col">{{ sgst_amount }}</td>
             </tr>
             <tr>
-                <td class="label-col">CGST {{ cgst_rate }}%</td>
+                <td class="label-col">CGST {{ cgst_rate_display }}%</td>
                 <td class="amount-col">{{ cgst_amount }}</td>
             </tr>
+            {% endif %}
             <tr class="grand-total-row">
                 <td class="label-col fw-bold">Grand Total</td>
                 <td class="amount-col">{{ grand_total }}</td>
@@ -428,8 +435,8 @@
     <div class="amount_delivery">
         **** {{ amount_in_words }} ****
         <div class="info-row"><strong>Payment Term :</strong> {{ payment_terms }}</div>
-        <div class="info-row"><strong>Delivery Term / INCO Terms :</strong> {{ delivery_terms }}</div>
-        <div class="info-row"><strong>Delivery Instructions :</strong> {{ delivery_instructions }}</div>
+        <div class="info-row"><strong>Delivery Term / INCO Terms :</strong> {{ shipment_method }}</div>
+        <div class="info-row"><strong>Delivery Instructions :</strong> {{ transaction_specification }}</div>
     </div>
 
     <!-- Terms and Conditions -->
@@ -439,12 +446,11 @@
         <div class="info-row"><strong>Version Date :</strong> {{ version_date }}</div>
     </div>
 
-    <!-- Remarks Section (Fixed Data) -->
+    <!-- Purchase Comments -->
     <div class="remarks-notes-section">
         <div class="remarks-title">Remarks :</div>
-        <div class="remarks-content">
-            <div>{{ remarks_formatted }}</div>
-            <div>{{ remarks_delivery_location }}</div>
+        <div class="remarks-content" style="white-space: pre-line;">
+            {{ purchase_comments | e }}
         </div>
         <div class="notes-section">
             <h4>Important Note :</h4>

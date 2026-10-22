@@ -2,6 +2,7 @@ import os
 import time
 import socket
 import smtplib
+import traceback
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from email.mime.text import MIMEText
@@ -27,6 +28,20 @@ def format_utc_timestamp_as_ist(value):
         timestamp_value = timestamp_value.replace(tzinfo=timezone.utc)
 
     return timestamp_value.astimezone(IST_TIMEZONE).strftime("%Y-%m-%d %H:%M:%S IST")
+
+
+def run_with_retry(operation, operation_name="operation", max_attempts=3, delay_seconds=2):
+    last_error = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return operation()
+        except Exception as error:
+            last_error = error
+            print(f"{operation_name} attempt {attempt}/{max_attempts} failed: {error}")
+            traceback.print_exc()
+            if attempt < max_attempts:
+                time.sleep(delay_seconds)
+    raise last_error
 
 
 def extract_name_from_email(email):

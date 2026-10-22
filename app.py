@@ -9,7 +9,7 @@ from Utility_Functions.JOB_Task.job_task import send_job_card_response_email_to_
 from sqlalchemy import text
 import os
 from flask_wtf.csrf import CSRFProtect
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import re  # Import re for regular expressions
 import json
 import time
@@ -25,7 +25,7 @@ from Utility_Functions.config.release_API import (
     release_api_should_retry,
     release_api_failure_message,
 )
-from Utility_Functions.config.utility_functions import get_utc_timestamp
+from Utility_Functions.config.utility_functions import get_utc_timestamp, run_with_retry
 from load_secrets import load_secrets
 from flask_session import Session
 from Utility_Functions.config.approval_otp import (
@@ -171,6 +171,182 @@ def _get_latest_approval_entry_approver(cursor, document_no):
     if not row or row[0] is None or not str(row[0]).strip():
         raise ValueError(f"No Approver ID found in the latest approval entry for document: {document_no}")
     return row[0]
+
+
+def _update_order_decision_with_retry(
+    email_table,
+    header_table,
+    document_no,
+    action,
+    email_status,
+    header_status,
+    reason,
+    timestamp,
+    user_data,
+    workflow_name,
+):
+    def update_transaction():
+        with pyodbc.connect(get_odbc_connection_string(), timeout=30) as conn:
+            try:
+                cursor = conn.cursor()
+                approved_by = _get_latest_approval_entry_approver(cursor, document_no)
+                approved_date_assignment = ", [Approved Date] = ?" if action == "approve" else ""
+                update_email_query = f"""
+                    UPDATE {email_table}
+                    SET [Emaill Status] = ?,
+                        [Reason] = ?,
+                        [Timestamps] = ?,
+                        [User Data] = ?,
+                        [Approved By] = ?{approved_date_assignment}
+                    WHERE [No_] = ?
+                """
+                email_params = [email_status, reason, timestamp, user_data, approved_by]
+                if action == "approve":
+                    email_params.append(timestamp)
+                email_params.append(document_no)
+                cursor.execute(update_email_query, *email_params)
+                if cursor.rowcount == 0:
+                    raise ValueError(f"{workflow_name} email row not found for document: {document_no}")
+
+                cursor.execute(
+                    f"UPDATE {header_table} SET [Status] = ? WHERE [No_] = ?",
+                    header_status,
+                    document_no,
+                )
+                if cursor.rowcount == 0:
+                    raise ValueError(f"{workflow_name} header row not found for document: {document_no}")
+
+                approval_status = 3 if action == "reject" else 4
+                cursor.execute(
+                    f"""
+                        UPDATE {APPROVAL_ENTRY_TABLE}
+                        SET [Status] = ?,
+                            [Last Date-Time Modified] = GETUTCDATE()
+                        WHERE [Document No_] = ?
+                          AND [Entry No_] = (
+                              SELECT MAX([Entry No_])
+                              FROM {APPROVAL_ENTRY_TABLE}
+                              WHERE [Document No_] = ?
+                          )
+                    """,
+                    approval_status,
+                    document_no,
+                    document_no,
+                )
+                if cursor.rowcount == 0:
+                    raise ValueError(f"Latest approval entry not found for document: {document_no}")
+
+                if action == "approve":
+                    cursor.execute(
+                        f"""
+                            SELECT DISTINCT [Record ID to Approve]
+                            FROM {APPROVAL_ENTRY_TABLE}
+                            WHERE [Document No_] = ?
+                              AND [Record ID to Approve] IS NOT NULL
+                        """,
+                        document_no,
+                    )
+                    record_ids = [row[0] for row in cursor.fetchall()]
+                    if record_ids:
+                        placeholders = ",".join("?" for _ in record_ids)
+                        cursor.execute(
+                            f"DELETE FROM {RESTRICTION_RECORDS_TABLE} WHERE [Record ID] IN ({placeholders})",
+                            *record_ids,
+                        )
+
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+
+    run_with_retry(
+        update_transaction,
+        operation_name=f"{workflow_name} {action} transaction for {document_no}",
+    )
+
+
+def _update_job_decision_with_retry(
+    document_no,
+    action,
+    email_status,
+    tpt_approval_status,
+    approved,
+    user_data,
+    timestamp,
+    reason,
+):
+    def update_transaction():
+        with pyodbc.connect(get_odbc_connection_string(), timeout=30) as conn:
+            try:
+                cursor = conn.cursor()
+                approval_status = 3 if action == "reject" else 4
+                cursor.execute(
+                    f"""
+                        UPDATE {APPROVAL_ENTRY_TABLE}
+                        SET [Status] = ?
+                        WHERE [Document No_] = ?
+                          AND [Entry No_] = (
+                              SELECT MAX([Entry No_])
+                              FROM {APPROVAL_ENTRY_TABLE}
+                              WHERE [Document No_] = ?
+                          )
+                    """,
+                    approval_status,
+                    document_no,
+                    document_no,
+                )
+                if cursor.rowcount == 0:
+                    raise ValueError(f"Latest approval entry not found for job: {document_no}")
+
+                cursor.execute(
+                    f"""
+                        UPDATE {JOB_CARD_MAIN_TABLE}
+                        SET [Emaill Status] = ?,
+                            [TPT_Approval Status] = ?,
+                            [Approved] = ?,
+                            [User Data] = ?,
+                            [Timestamps] = ?,
+                            [Reason] = ?
+                        WHERE [No_] = ?
+                    """,
+                    email_status,
+                    tpt_approval_status,
+                    approved,
+                    user_data,
+                    timestamp,
+                    reason,
+                    document_no,
+                )
+                if cursor.rowcount == 0:
+                    raise ValueError(f"Job card row not found for document: {document_no}")
+
+                if action == "approve":
+                    cursor.execute(
+                        f"""
+                            SELECT DISTINCT [Record ID to Approve]
+                            FROM {APPROVAL_ENTRY_TABLE}
+                            WHERE [Document No_] = ?
+                              AND [Record ID to Approve] IS NOT NULL
+                        """,
+                        document_no,
+                    )
+                    record_ids = [row[0] for row in cursor.fetchall()]
+                    if record_ids:
+                        placeholders = ",".join("?" for _ in record_ids)
+                        cursor.execute(
+                            f"DELETE FROM {RESTRICTION_RECORDS_TABLE} WHERE [Record ID] IN ({placeholders})",
+                            *record_ids,
+                        )
+
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+
+    run_with_retry(
+        update_transaction,
+        operation_name=f"Job card {action} transaction for {document_no}",
+    )
 
 
 def _render_otp_send_failed():
@@ -583,7 +759,7 @@ def email_process_approval(request_id):
 
         device_string = format_device_details_string(form_details, client_details)
         
-        current_time = str(datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])[:255]
+        current_time = get_utc_timestamp()
         
         
         if not action:
@@ -637,23 +813,24 @@ def email_process_approval(request_id):
                 return jsonify(err), 400
 
         approver_name = requisition.get('Send for Approval', '')
-        current_time = datetime.now()
+        approval_time_utc = datetime.now(timezone.utc)
+        current_time = get_utc_timestamp()
 
         approval_data = None
         if action == 'approve':
             approval_data = {
                 "approver_name": approver_name,
-                "approved_date": current_time.date(),
-                "approved_time": current_time.time(),
+                "approved_date": approval_time_utc.date(),
+                "approved_time": approval_time_utc.time(),
             }
         
         if action == 'approve':
-            current_time = datetime.now()
+            reason_val = reason.strip() if reason and reason.strip() else "None"
             success = update_purchase_request_status_with_text(
                 request_id,
                 int_status=1,  # Approved
                 text_status="Approved",
-                reason=reason if reason.strip() else None,
+                reason=reason_val,
                 user_data=device_string,
                 timestemp=current_time,
                 approval_data=approval_data
@@ -948,7 +1125,7 @@ def email_process_accountant_approval(request_id):
 
         device_string = format_device_details_string(form_details, client_details)
         
-        current_time = str(datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])[:255]
+        current_time = get_utc_timestamp()
         
         
         if not action:
@@ -1004,54 +1181,55 @@ def email_process_accountant_approval(request_id):
             """)
         
         # Update status for accountant approval/rejection
-
-        
         engine = get_engine()
-        with engine.connect() as connection:
-            if action == 'approve':
-                update_query = text(f"""
-                    UPDATE {PURCHASE_REQ_TABLE}
-                    SET [Emaill Status] = 'approved by acc',
-                        [Reason] = :reason,
-                        [Approved By Account Dept_] = 1,
-                        [User Data] = :user_data,
-                        [Timestamps] = :timestemp
-                    WHERE [No_] = :request_id
-                """)
-                params = {
-                    "request_id": str(request_id),
-                    "reason": reason if reason.strip() else "None",
-                    "user_data": device_string,
-                    "timestemp": current_time
-                }
-            elif action == 'reject':
-                update_query = text(f"""
-                    UPDATE {PURCHASE_REQ_TABLE}
-                    SET [Emaill Status] = 'pending',
-                        [Status] = 0,
-                        [Reason] = :reason,
-                        [Approved By Account Dept_] = 0,
-                        [User Data] = :user_data,
-                        [Timestamps] = :timestemp
-                    WHERE [No_] = :request_id
-                """)
-                params = {
-                    "request_id": str(request_id),
-                    "reason": reason,
-                    "user_data": device_string,
-                    "timestemp": current_time
-                }
-            else:
-                raise ValueError('Invalid action')
-            
-            result = connection.execute(update_query, params)
-            connection.commit()
-            
-            if result.rowcount == 0:
-                error_msg = f'Failed to update purchase requisition status. No rows updated for request_id: {request_id}, action: {action}'
-                print(f"[ERROR] {error_msg}")
-                print(f"[DEBUG] Current email status: {email_status}")
-                raise ValueError(error_msg)
+        if action == 'approve':
+            update_query = text(f"""
+                UPDATE {PURCHASE_REQ_TABLE}
+                SET [Emaill Status] = 'approved by acc',
+                    [Reason] = :reason,
+                    [Approved By Account Dept_] = 1,
+                    [User Data] = :user_data,
+                    [Timestamps] = :timestemp
+                WHERE [No_] = :request_id
+            """)
+            params = {
+                "request_id": str(request_id),
+                "reason": reason if reason.strip() else "None",
+                "user_data": device_string,
+                "timestemp": current_time
+            }
+        elif action == 'reject':
+            update_query = text(f"""
+                UPDATE {PURCHASE_REQ_TABLE}
+                SET [Emaill Status] = 'pending',
+                    [Status] = 0,
+                    [Reason] = :reason,
+                    [Approved By Account Dept_] = 0,
+                    [User Data] = :user_data,
+                    [Timestamps] = :timestemp
+                WHERE [No_] = :request_id
+            """)
+            params = {
+                "request_id": str(request_id),
+                "reason": reason,
+                "user_data": device_string,
+                "timestemp": current_time
+            }
+        else:
+            raise ValueError('Invalid action')
+
+        def update_accountant_decision():
+            with engine.begin() as connection:
+                result = connection.execute(update_query, params)
+                if result.rowcount == 0:
+                    raise ValueError(
+                        f'No purchase requisition row updated for request_id: {request_id}, action: {action}'
+                    )
+
+        run_with_retry(
+            update_accountant_decision,
+            operation_name=f"IM accountant {action} transaction for {request_id}",
+        )
         
         # Send response email to creator after accountant approval/rejection
         try:
@@ -1414,85 +1592,21 @@ def purchase_email_process_approval_and_reject(request_id):
             status = 1  # Approved
         else:
             raise ValueError('Invalid action')
-        approved_date_assignment = ",\n                  [Approved Date] = ?" if action == 'approve' else ""
-        sql_status_update = f"""
-              UPDATE {PURCHASE_HEADER_MAIN}
-              SET [Status] = ?
-              WHERE [No_] = ?
-              """  
-        reason_val = reason.strip() if reason and reason.strip() else "None"
         current_time = full_timestamp
+        reason_val = reason.strip() if reason and reason.strip() else "None"
         try:
-            with pyodbc.connect(get_odbc_connection_string(), timeout=30) as conn:
-                cursor = conn.cursor()
-                approved_by = _get_latest_approval_entry_approver(cursor, request_id)
-                sql = f"""
-                      UPDATE {PURCHASE_EMAIL_TABLE}
-                      SET [Emaill Status] = ?,
-                          [Reason] = ?,
-                          [Timestamps] = ?,
-                          [User Data] = ?,
-                          [Approved By] = ?{approved_date_assignment}
-                      WHERE [No_] = ?
-                      """
-                email_update_params = [email_status, reason_val, current_time, device_string, approved_by]
-                if action == 'approve':
-                    email_update_params.append(current_time)
-                email_update_params.append(request_id)
-                cursor.execute(sql, *email_update_params)
-                if cursor.rowcount == 0:
-                    raise ValueError(f"Purchase email row not found for document: {request_id}")
-                cursor.execute(sql_status_update, status, request_id)
-                if cursor.rowcount == 0:
-                    raise ValueError(f"Purchase header row not found for document: {request_id}")
-                approval_status = 3 if action == 'reject' else 4
-                sql_approval_update = f"""
-                    UPDATE {APPROVAL_ENTRY_TABLE}
-                    SET [Status] = ?,
-                        [Last Date-Time Modified] = GETUTCDATE()
-                    WHERE [Document No_] = ?
-                      AND [Entry No_] = (
-                        SELECT MAX([Entry No_])
-                        FROM {APPROVAL_ENTRY_TABLE}
-                        WHERE [Document No_] = ?
-                      )
-                """
-                cursor.execute(sql_approval_update, approval_status, request_id, request_id)
-                if cursor.rowcount == 0:
-                    raise ValueError(f"Latest approval entry not found for document: {request_id}")
-
-
-                # Delete restriction records if action is not reject
-                if action != 'reject':
-                    # Get distinct Record IDs from APPROVAL_ENTRY_TABLE
-                    sql_get_record_ids = f"""
-                        SELECT DISTINCT [Record ID to Approve]
-                        FROM {APPROVAL_ENTRY_TABLE}
-                        WHERE [Document No_] = ?
-                        AND [Record ID to Approve] IS NOT NULL
-                    """
-                    cursor.execute(sql_get_record_ids, request_id)
-                    record_ids = [row[0] for row in cursor.fetchall()]
-
-                    # Delete rows from RESTRICTION_RECORDS_TABLE for each Record ID
-                    if record_ids:
-                        try:
-                            # Use parameterized query with IN clause
-                            placeholders = ','.join('?' * len(record_ids))
-                            sql_delete_restrictions = f"""
-                                DELETE FROM {RESTRICTION_RECORDS_TABLE}
-                                WHERE [Record ID] IN ({placeholders})
-                            """
-                            cursor.execute(sql_delete_restrictions, *record_ids)
-                            rows_deleted = cursor.rowcount
-                            if rows_deleted > 0:
-                                print(f"Deleted {rows_deleted} restriction record(s) for Document No: {request_id}, Record IDs: {record_ids}")
-                            else:
-                                print(f"No restriction records found to delete for Document No: {request_id}, Record IDs: {record_ids}")
-                        except Exception as delete_error:
-                            print(f"Warning: Could not delete restriction records for Document No: {request_id}. Error: {str(delete_error)}. Continuing with next steps...")
-
-                conn.commit()
+            _update_order_decision_with_retry(
+                PURCHASE_EMAIL_TABLE,
+                PURCHASE_HEADER_MAIN,
+                request_id,
+                action,
+                email_status,
+                status,
+                reason_val,
+                current_time,
+                device_string,
+                "Purchase order",
+            )
 
             if action == 'approve':
                 print(f"Triggering order release API for request_id: {request_id}")
@@ -1860,85 +1974,20 @@ def sales_order_email_process_approval_and_reject(request_id):
         else:
             email_status = "Approved"
             status = 1  # Approved
+        reason_val = reason.strip() if reason and reason.strip() else "None"
         try:
-            with pyodbc.connect(get_odbc_connection_string(), timeout=30) as conn:
-                cursor = conn.cursor()
-                approved_by = _get_latest_approval_entry_approver(cursor, request_id)
-                approval_status = 3 if action == 'reject' else 4
-                sql_approval_update = f"""
-                    UPDATE {APPROVAL_ENTRY_TABLE}
-                    SET [Status] = ?,
-                        [Last Date-Time Modified] = GETUTCDATE()
-                    WHERE [Document No_] = ?
-                      AND [Entry No_] = (
-                        SELECT MAX([Entry No_])
-                        FROM {APPROVAL_ENTRY_TABLE}
-                        WHERE [Document No_] = ?
-                      )
-                """
-                cursor.execute(sql_approval_update, approval_status, request_id, request_id)
-                if cursor.rowcount == 0:
-                    raise ValueError(f"Latest approval entry not found for document: {request_id}")
-
-                # Perform SQL UPDATE before sending email
-                approved_date_assignment = ",\n                    [Approved Date] = ?" if action == 'approve' else ""
-                sql = f"""
-                    UPDATE {SALES_ORDER_EMAIL_TABLE}
-                    SET [Emaill Status] = ?,
-                    [User Data] = ?,
-                    [Timestamps] = ?,
-                    [Reason] = ?,
-                    [Approved By] = ?{approved_date_assignment}
-                    WHERE [No_] = ?
-                """
-                email_update_params = [email_status, device_string, current_time, reason, approved_by]
-                if action == 'approve':
-                    email_update_params.append(current_time)
-                email_update_params.append(request_id)
-                cursor.execute(sql, *email_update_params)
-                if cursor.rowcount == 0:
-                    raise ValueError(f"Sales email row not found for document: {request_id}")
-        
-                sql_status_update = f"""
-                  UPDATE {SALES_ORDER_MAIN}
-                  SET [Status] = ?
-                  WHERE [No_] = ?
-                """  
-                cursor.execute(sql_status_update, status, request_id)
-                if cursor.rowcount == 0:
-                    raise ValueError(f"Sales header row not found for document: {request_id}")
-
-                # Delete restriction records if action is not reject
-                if action != 'reject':
-                    # Get distinct Record IDs from APPROVAL_ENTRY_TABLE
-                    sql_get_record_ids = f"""
-                        SELECT DISTINCT [Record ID to Approve]
-                        FROM {APPROVAL_ENTRY_TABLE}
-                        WHERE [Document No_] = ?
-                        AND [Record ID to Approve] IS NOT NULL
-                    """
-                    cursor.execute(sql_get_record_ids, request_id)
-                    record_ids = [row[0] for row in cursor.fetchall()]
-                    
-                    # Delete rows from RESTRICTION_RECORDS_TABLE for each Record ID
-                    if record_ids:
-                        try:
-                            # Use parameterized query with IN clause
-                            placeholders = ','.join('?' * len(record_ids))
-                            sql_delete_restrictions = f"""
-                                DELETE FROM {RESTRICTION_RECORDS_TABLE}
-                                WHERE [Record ID] IN ({placeholders})
-                            """
-                            cursor.execute(sql_delete_restrictions, *record_ids)
-                            rows_deleted = cursor.rowcount
-                            if rows_deleted > 0:
-                                print(f"Deleted {rows_deleted} restriction record(s) for SO Document No: {request_id}, Record IDs: {record_ids}")
-                            else:
-                                print(f"No restriction records found to delete for SO Document No: {request_id}, Record IDs: {record_ids}")
-                        except Exception as delete_error:
-                            print(f"Warning: Could not delete restriction records for SO Document No: {request_id}. Error: {str(delete_error)}. Continuing with next steps...")
-                            
-                conn.commit()
+            _update_order_decision_with_retry(
+                SALES_ORDER_EMAIL_TABLE,
+                SALES_ORDER_MAIN,
+                request_id,
+                action,
+                email_status,
+                status,
+                reason_val,
+                current_time,
+                device_string,
+                "Sales order",
+            )
 
             if action != 'reject':
                 print(f"Triggering order release API for request_id: {request_id}")
@@ -2314,7 +2363,7 @@ def job_card_email_process_approval_and_reject(request_id):
 
         
         # Get full timestamp
-        current_time = str(datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])[:255]
+        current_time = get_utc_timestamp()
 
         # Updating Email table after sending Email
         if action == 'reject':
@@ -2328,69 +2377,23 @@ def job_card_email_process_approval_and_reject(request_id):
         else:
             raise ValueError('Invalid action')
 
+        reason_val = reason.strip() if reason and reason.strip() else "None"
         try:
-            with pyodbc.connect(get_odbc_connection_string(), timeout=30) as conn:
-                cursor = conn.cursor()
-                approval_status = 3 if action == 'reject' else 4
-                sql_approval_update = f"""
-                    UPDATE {APPROVAL_ENTRY_TABLE}
-                    SET [Status] = ?
-                    WHERE [Document No_] = ?
-                      AND [Entry No_] = (
-                        SELECT MAX([Entry No_])
-                        FROM {APPROVAL_ENTRY_TABLE}
-                        WHERE [Document No_] = ?
-                      )
-                """
-                cursor.execute(sql_approval_update, approval_status, request_id, request_id)
-                # Perform SQL UPDATE before sending email
-                sql = f"""
-                    UPDATE {JOB_CARD_MAIN_TABLE}
-                    SET [Emaill Status] = ?,
-                    [TPT_Approval Status] = ?,
-                    [Approved] = ?,
-                    [User Data] = ?,
-                    [Timestamps] = ?,
-                    [Reason] = ?
-                    WHERE [No_] = ?
-                """
-                cursor.execute(sql, email_status, tpt_approval_status, approved, device_string, current_time, reason, request_id)
-
-
-                # Delete restriction records if action is not reject
-                if action != 'reject':
-                    # Get distinct Record IDs from APPROVAL_ENTRY_TABLE
-                    sql_get_record_ids = f"""
-                        SELECT DISTINCT [Record ID to Approve]
-                        FROM {APPROVAL_ENTRY_TABLE}
-                        WHERE [Document No_] = ?
-                        AND [Record ID to Approve] IS NOT NULL
-                    """
-                    cursor.execute(sql_get_record_ids, request_id)
-                    record_ids = [row[0] for row in cursor.fetchall()]
-                    
-                    # Delete rows from RESTRICTION_RECORDS_TABLE for each Record ID
-                    if record_ids:
-                        try:
-                            # Use parameterized query with IN clause
-                            placeholders = ','.join('?' * len(record_ids))
-                            sql_delete_restrictions = f"""
-                                DELETE FROM {RESTRICTION_RECORDS_TABLE}
-                                WHERE [Record ID] IN ({placeholders})
-                            """
-                            cursor.execute(sql_delete_restrictions, *record_ids)
-                            rows_deleted = cursor.rowcount
-                            if rows_deleted > 0:
-                                print(f"Deleted {rows_deleted} restriction record(s) for SO Document No: {request_id}, Record IDs: {record_ids}")
-                            else:
-                                print(f"No restriction records found to delete for SO Document No: {request_id}, Record IDs: {record_ids}")
-                        except Exception as delete_error:
-                            print(f"Warning: Could not delete restriction records for SO Document No: {request_id}. Error: {str(delete_error)}. Continuing with next steps...")
-
-                conn.commit()
+            _update_job_decision_with_retry(
+                request_id,
+                action,
+                email_status,
+                tpt_approval_status,
+                approved,
+                device_string,
+                current_time,
+                reason_val,
+            )
 
             #Sending response email to creator
-            response_success = send_job_card_response_email_to_customer( request_id, email_status,  reason)
+            response_success = send_job_card_response_email_to_customer(
+                request_id, email_status, reason, current_time
+            )
 
             if not response_success['success']:
                 return jsonify({"status": "Error", "success": False, "message": response_success['message']})

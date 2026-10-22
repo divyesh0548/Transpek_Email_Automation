@@ -1,5 +1,5 @@
-from Utility_Functions.config.constants import PURCHASE_LINE_TABLE, PURCHASE_EMAIL_TABLE, PURCHASE_HEADER_MAIN, PURCHASE_HEADER_STATE, PURCHASE_HEADER_GST, APPROVAL_ENTRY_TABLE
-from Utility_Functions.config.database import get_odbc_connection_string, get_table_schema, row_to_dict, get_state_info, get_engine
+from Utility_Functions.config.constants import PURCHASE_LINE_TABLE, PURCHASE_HSN_GST_TABLE, PURCHASE_COMMENTS_TABLE, GST_CODE_TABLE, PURCHASE_EMAIL_TABLE, PURCHASE_HEADER_MAIN, PURCHASE_HEADER_STATE, PURCHASE_HEADER_GST, APPROVAL_ENTRY_TABLE, PAYMENT_TERMS_CODE_TABLE, SHIPMENT_METHOD_TABLE, TRANSACTION_SPECIFICATION_TABLE
+from Utility_Functions.config.database import execute_update_with_retry, get_odbc_connection_string, get_table_schema, row_to_dict, get_state_info, get_engine
 import pyodbc
 import uuid
 from datetime import datetime
@@ -56,6 +56,22 @@ def fetch_purchase_line_items(no_):
                     cost = item_dict.get('Direct Unit Cost', 0)
                     
                     print(f"  - {desc}: {qty} {unit} @ {cost}")
+
+                query_hsn_codes = f"""
+                    SELECT [HSN_SAC Code]
+                    FROM {PURCHASE_HSN_GST_TABLE}
+                    WHERE [Document No_] = ?
+                    ORDER BY [Line No_] ASC
+                """
+                cursor.execute(query_hsn_codes, (no_,))
+                hsn_codes = cursor.fetchall()
+                if len(hsn_codes) != len(items_list):
+                    print(
+                        f"WARNING: Found {len(hsn_codes)} HSN codes for "
+                        f"{len(items_list)} line items on Purchase No_: {no_}"
+                    )
+                for item_dict, hsn_row in zip(items_list, hsn_codes):
+                    item_dict['HSN_SAC Code'] = hsn_row[0]
             else:
                 print(f"No line items found for Purchase No_: {no_}")
             
@@ -65,6 +81,76 @@ def fetch_purchase_line_items(no_):
         print(f"Error fetching line items: {str(e)}")
     
     return items_list
+
+
+def fetch_purchase_gst_details(cursor, no_):
+    purchase_gst_query = f"""
+        SELECT [GST Group code], [GST Jurisdiction Type]
+        FROM {PURCHASE_HSN_GST_TABLE}
+        WHERE [Document No_] = ?
+    """
+    cursor.execute(purchase_gst_query, (no_,))
+    purchase_gst_rows = cursor.fetchall()
+    if not purchase_gst_rows:
+        raise ValueError(f"No purchase GST rows found for Document No_: {no_}")
+
+    gst_group_codes = {str(row[0] or "").strip() for row in purchase_gst_rows}
+    if gst_group_codes == {""}:
+        return {
+            "GST Group code": "",
+            "GST Jurisdiction Type": None,
+            "GST Rate": None,
+        }
+    if "" in gst_group_codes:
+        raise ValueError(
+            f"Purchase GST rows have inconsistent group codes for Document No_: {no_}"
+        )
+
+    purchase_gst_values = set()
+    for row in purchase_gst_rows:
+        gst_group_code = str(row[0]).strip()
+        try:
+            jurisdiction_type = int(row[1])
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Invalid GST Jurisdiction Type for Document No_: {no_}"
+            ) from exc
+        if jurisdiction_type not in (0, 1):
+            raise ValueError(
+                f"Unsupported GST Jurisdiction Type {jurisdiction_type} "
+                f"for Document No_: {no_}"
+            )
+        purchase_gst_values.add((gst_group_code, jurisdiction_type))
+
+    if len(purchase_gst_values) != 1:
+        raise ValueError(
+            f"Purchase GST rows have inconsistent group codes or jurisdiction "
+            f"types for Document No_: {no_}"
+        )
+
+    gst_group_code, jurisdiction_type = purchase_gst_values.pop()
+    gst_description_query = f"""
+        SELECT [Description]
+        FROM {GST_CODE_TABLE}
+        WHERE [Code] = ?
+    """
+    cursor.execute(gst_description_query, (gst_group_code,))
+    gst_description_row = cursor.fetchone()
+    if not gst_description_row or not gst_description_row[0]:
+        raise ValueError(f"No GST description found for GST Group code: {gst_group_code}")
+
+    percentage_match = re.search(r"(\d+(?:\.\d+)?)\s*%", str(gst_description_row[0]))
+    if not percentage_match:
+        raise ValueError(
+            f"Could not find a GST percentage in description for GST Group code: "
+            f"{gst_group_code}"
+        )
+
+    return {
+        "GST Group code": gst_group_code,
+        "GST Jurisdiction Type": jurisdiction_type,
+        "GST Rate": float(percentage_match.group(1)),
+    }
 
 def extract_name_from_email(email):
     if '@' not in email:
@@ -188,6 +274,49 @@ def check_purchase_order_pending_emails():
                     cursor2.execute(gst_query, (no_,))
                     gst_data = cursor2.fetchone()
 
+                    payment_terms_query = f"""
+                        SELECT [Description]
+                        FROM {PAYMENT_TERMS_CODE_TABLE}
+                        WHERE [Code] = ?    
+                    """
+                    cursor2.execute(payment_terms_query, (main_rd.get("Payment Terms Code"),))
+                    payment_terms_data = cursor2.fetchone()
+                    payment_terms_description = payment_terms_data[0] if payment_terms_data else ""
+
+                    shipment_method_query = f"""
+                        SELECT [Description]
+                        FROM {SHIPMENT_METHOD_TABLE}
+                        WHERE [Code] = ?
+                    """
+
+                    cursor2.execute(shipment_method_query, (main_rd.get("Shipment Method Code"),))
+                    shipment_method_data = cursor2.fetchone()
+                    shipment_method = shipment_method_data[0] if shipment_method_data else ""
+
+
+                    transaction_specification_query = f"""
+                        SELECT [Description]
+                        FROM {TRANSACTION_SPECIFICATION_TABLE}
+                        WHERE [Code] = ?
+                    """
+                    cursor2.execute(transaction_specification_query, (main_rd.get("Transaction Specification"),))
+                    transaction_specification_data = cursor2.fetchone()
+                    transaction_specification = transaction_specification_data[0] if transaction_specification_data else ""
+
+                    purchase_comments_query = f"""
+                        SELECT [Comment]
+                        FROM {PURCHASE_COMMENTS_TABLE}
+                        WHERE [No_] = ?
+                        ORDER BY [Line No_] ASC
+                    """
+                    cursor2.execute(purchase_comments_query, (no_,))
+                    purchase_comments = "\n".join(
+                        str(comment_row[0]).strip()
+                        for comment_row in cursor2.fetchall()
+                        if comment_row[0] is not None and str(comment_row[0]).strip()
+                    )
+                    purchase_gst_details = fetch_purchase_gst_details(cursor2, no_)
+
                     state_info = get_state_info(state_data[0]) if state_data else {}
                     order_date = main_rd.get("Order Date")
                     buy_from_vendor_no = main_rd.get("Pay-to Vendor No_")
@@ -213,6 +342,11 @@ def check_purchase_order_pending_emails():
                         'State': state,
                         'Vendor GST Reg_ No_': vendor_gst_reg_no,
                         'Payment Terms Code': payment_terms_code,
+                        'Payment Terms Description': payment_terms_description,
+                        'Shipment Method': shipment_method,
+                        'Transaction Specification': transaction_specification,
+                        'Purchase Comments': purchase_comments,
+                        **purchase_gst_details,
                         'Approver Mail ID': approver_email,
                         'Creator Mail ID': creator_email,
                         'Creator Name': extract_name_from_email(creator_email)
@@ -239,8 +373,11 @@ def check_purchase_order_pending_emails():
                                  [Timestamps] = ?
                              WHERE [No_] = ?
                              """
-                            cursor.execute(update_query, (current_time, email_row[0]))
-                            conn.commit()
+                            execute_update_with_retry(
+                                update_query,
+                                (current_time, email_row[0]),
+                                operation_name=f"Purchase approval-email status update for {email_row[0]}",
+                            )
                             print(f"✅ Successfully processed Domestic order: {no_}")
                         else:
                             print(
@@ -450,10 +587,11 @@ def send_purchase_response_email_to_creator(request_id, response_status, reason=
                 SET [Response Mail Send] = ?
                 WHERE [No_] = ?
             """
-            with pyodbc.connect(get_odbc_connection_string(), timeout=30) as conn:
-                cursor = conn.cursor()
-                cursor.execute(sql, 1, request_id)
-                conn.commit()
+            execute_update_with_retry(
+                sql,
+                (1, request_id),
+                operation_name=f"Purchase response-mail status update for {request_id}",
+            )
         except Exception as e:
             print(f"WARNING: Email sent but Response Mail Send update failed for {request_id}: {e}")
         

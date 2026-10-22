@@ -46,6 +46,8 @@ PURCHASE_HEADER_GST = "[dbo].[Transpek Industry Limited$Purchase Header$db643212
 PURCHASE_HEADER_STATE = "[dbo].[Transpek Industry Limited$Purchase Header$d3c551dd-5903-4194-b153-04ced9d29a2c]"
 PURCHASE_LINE_TABLE = "[dbo].[Transpek Industry Limited$Purchase Line$437dbf0e-84ff-417a-965d-ed2bb9650972]"
 PURCHASE_EMAIL_TABLE = "[dbo].[Transpek Industry Limited$Purchase Header$114fe92f-996b-45f1-94bb-c0d5b6ba317e]"
+PURCHASE_COMMENTS_TABLE = "[dbo].[Transpek Industry Limited$Purch_ Comment Line$437dbf0e-84ff-417a-965d-ed2bb9650972]"
+PURCHASE_HSN_GST_TABLE = "[dbo].[Transpek Industry Limited$Purchase Line$db643212-b7fb-4dd4-b5a8-cb44ac714461]"
 
 #Sales Order Tables
 SALES_ORDER_MAIN = "[dbo].[Transpek Industry Limited$Sales Header$437dbf0e-84ff-417a-965d-ed2bb9650972]"
@@ -64,6 +66,7 @@ SALES_ORDER_CUSTOMER_TABLE = "[dbo].[Transpek Industry Limited$Customer$437dbf0e
 TRANSPORT_METHOD_CODE_TABLE = "[dbo].[Transpek Industry Limited$Transport Method$437dbf0e-84ff-417a-965d-ed2bb9650972]"
 PAYMENT_TERMS_CODE_TABLE = "[dbo].[Transpek Industry Limited$Payment Terms$437dbf0e-84ff-417a-965d-ed2bb9650972]"
 SHIPMENT_METHOD_TABLE = "[dbo].[Transpek Industry Limited$Shipment Method$437dbf0e-84ff-417a-965d-ed2bb9650972]"
+TRANSACTION_SPECIFICATION_TABLE = "[dbo].[Transpek Industry Limited$Transaction Specification$437dbf0e-84ff-417a-965d-ed2bb9650972]"
 
 
 #JOB Card Tables
@@ -89,5 +92,8 @@ ENTRY_EXIT_POINTS_TABLE = "[dbo].[Transpek Industry Limited$Entry_Exit Point$437
 
 #Code-City Table
 CODE_CITY_TABLE = "[dbo].[Transpek Industry Limited$Post Code$437dbf0e-84ff-417a-965d-ed2bb9650972]"
+
+#GST Code table
+GST_CODE_TABLE = "[dbo].[Transpek Industry Limited$GST Group$db643212-b7fb-4dd4-b5a8-cb44ac714461]"
 
 START_TIMESTAMP = datetime.now()
