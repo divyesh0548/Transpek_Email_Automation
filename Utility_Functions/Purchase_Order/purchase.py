@@ -315,7 +315,7 @@ def check_purchase_order_pending_emails():
 
 
                     transaction_specification_query = f"""
-                        SELECT [Description]
+                        SELECT [Text]
                         FROM {TRANSACTION_SPECIFICATION_TABLE}
                         WHERE [Code] = ?
                     """
