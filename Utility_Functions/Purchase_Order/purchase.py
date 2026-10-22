@@ -22,6 +22,8 @@ _PURCHASE_HEADER_MAIN_COLUMNS = (
     "[Buy-from Contact]",
     "[Buy-from Post Code]",
     "[Payment Terms Code]",
+    "[Shipment Method Code]",
+    "[Transaction Specification]",
 )
 PURCHASE_HEADER_MAIN_SELECT = ", ".join(_PURCHASE_HEADER_MAIN_COLUMNS)
 
