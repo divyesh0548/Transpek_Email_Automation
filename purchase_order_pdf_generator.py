@@ -105,7 +105,7 @@ def prepare_Purchase_Order_Template_data(header_data: Dict, line_data: List[Dict
     
     # Calculate totals
     basic_total = sum(float(item.get('Amount', 0)) for item in line_data)
-    gst_group_code = str(header_data.get('GST Group code') or '').strip()
+    gst_group_code = str(header_data.get('GST Group Code') or '').strip()
     show_gst = bool(gst_group_code)
     if show_gst:
         gst_jurisdiction_type = int(header_data['GST Jurisdiction Type'])

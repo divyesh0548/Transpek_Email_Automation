@@ -97,7 +97,7 @@ def fetch_purchase_line_items(no_):
 def fetch_purchase_gst_details(cursor, no_):
     current_table = PURCHASE_HSN_GST_TABLE
     purchase_gst_query = f"""
-        SELECT [GST Group code], [GST Jurisdiction Type]
+        SELECT [GST Group Code], [GST Jurisdiction Type]
         FROM {PURCHASE_HSN_GST_TABLE}
         WHERE [Document No_] = ?
     """
@@ -113,7 +113,7 @@ def fetch_purchase_gst_details(cursor, no_):
     gst_group_codes = {str(row[0] or "").strip() for row in purchase_gst_rows}
     if gst_group_codes == {""}:
         return {
-            "GST Group code": "",
+            "GST Group Code": "",
             "GST Jurisdiction Type": None,
             "GST Rate": None,
         }
@@ -168,7 +168,7 @@ def fetch_purchase_gst_details(cursor, no_):
         )
 
     return {
-        "GST Group code": gst_group_code,
+        "GST Group Code": gst_group_code,
         "GST Jurisdiction Type": jurisdiction_type,
         "GST Rate": float(percentage_match.group(1)),
     }
