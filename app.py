@@ -390,7 +390,7 @@ def _run_delayed_release_api_call(
     api_url,
     payload_key,
     retry_job,
-    max_attempts=500,
+    max_attempts=1001,
     retry_minutes=2,
 ):
     release_result = trigger_oder_release(

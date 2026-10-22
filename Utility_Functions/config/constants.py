@@ -60,6 +60,7 @@ SALES_ORDER_SHIPMENT_TABLE = "[dbo].[Transpek Industry Limited$Sales Header$2c8b
 SALES_ORDER_TPK_DETAILS_TABLE = "[dbo].[Transpek Industry Limited$Sales Header$114fe92f-996b-45f0-93bb-c0d5b6bf206e]"
 SALES_ORDER_SHIP_TO_ADDRESS_TABLE = "[dbo].[Transpek Industry Limited$Ship-to Address$437dbf0e-84ff-417a-965d-ed2bb9650972]"
 SALES_ORDER_CUSTOMER_TABLE = "[dbo].[Transpek Industry Limited$Customer$437dbf0e-84ff-417a-965d-ed2bb9650972]"
+SALES_HSN_GST_TABLE = "[dbo].[Transpek Industry Limited$Sales Line$db643212-b7fb-4dd4-b5a8-cb44ac714461]"
 
 
 #Transport method/Payment terms code table

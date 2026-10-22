@@ -1,4 +1,4 @@
-from Utility_Functions.config.constants import SALES_ORDER_ITEMS_TABLE, SALES_ORDER_EMAIL_TABLE, SALES_ORDER_GST, SALES_ORDER_MAIN, SALES_PERSON_TABLE, SALES_ORDER_SHIPMENT_TABLE, SALES_ORDER_TPK_DETAILS_TABLE, SALES_ORDER_SHIP_TO_ADDRESS_TABLE, SALES_ORDER_CUSTOMER_TABLE, SALES_ORDER_SECONDARY_ITEMS_TABLE, APPROVAL_ENTRY_TABLE, COUNTRY_REGION_CODES_TABLE, TRANSPORT_METHOD_CODE_TABLE, PAYMENT_TERMS_CODE_TABLE, SHIPMENT_METHOD_TABLE, ENTRY_EXIT_POINTS_TABLE, CODE_CITY_TABLE
+from Utility_Functions.config.constants import SALES_ORDER_ITEMS_TABLE, SALES_ORDER_EMAIL_TABLE, SALES_ORDER_GST, SALES_ORDER_MAIN, SALES_PERSON_TABLE, SALES_ORDER_SHIPMENT_TABLE, SALES_ORDER_TPK_DETAILS_TABLE, SALES_ORDER_SHIP_TO_ADDRESS_TABLE, SALES_ORDER_CUSTOMER_TABLE, SALES_ORDER_SECONDARY_ITEMS_TABLE, SALES_HSN_GST_TABLE, GST_CODE_TABLE, APPROVAL_ENTRY_TABLE, COUNTRY_REGION_CODES_TABLE, TRANSPORT_METHOD_CODE_TABLE, PAYMENT_TERMS_CODE_TABLE, SHIPMENT_METHOD_TABLE, ENTRY_EXIT_POINTS_TABLE, CODE_CITY_TABLE
 from Utility_Functions.config.database import execute_update_with_retry, get_odbc_connection_string, row_to_dict, get_table_schema, get_engine, get_state_info
 from Utility_Functions.config.utility_functions import extract_name_from_email, format_utc_timestamp_as_ist, get_utc_timestamp, smtp_send_message
 import pyodbc
@@ -87,6 +87,76 @@ def fetch_sales_order_line_items(no_):
         print(f"Error fetching line items: {str(e)}")
     
     return items_list
+
+
+def fetch_sales_order_gst_details(cursor, no_):
+    gst_query = f"""
+        SELECT [GST Group Code], [GST Jurisdiction Type]
+        FROM {SALES_HSN_GST_TABLE}
+        WHERE [Document No_] = ?
+    """
+    cursor.execute(gst_query, (no_,))
+    gst_rows = cursor.fetchall()
+    if not gst_rows:
+        return {
+            "GST Group Code": "",
+            "GST Jurisdiction Type": None,
+            "GST Rate": None,
+        }
+
+    gst_group_codes = {str(row[0] or "").strip() for row in gst_rows}
+    if gst_group_codes == {""}:
+        return {
+            "GST Group Code": "",
+            "GST Jurisdiction Type": None,
+            "GST Rate": None,
+        }
+    if "" in gst_group_codes:
+        raise ValueError(f"Sales GST rows have inconsistent group codes for Document No_: {no_}")
+
+    gst_values = set()
+    for row in gst_rows:
+        try:
+            jurisdiction_type = int(row[1])
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid GST Jurisdiction Type for Document No_: {no_}") from exc
+        if jurisdiction_type not in (0, 1):
+            raise ValueError(
+                f"Unsupported GST Jurisdiction Type {jurisdiction_type} "
+                f"for Document No_: {no_}"
+            )
+        gst_values.add((str(row[0]).strip(), jurisdiction_type))
+
+    if len(gst_values) != 1:
+        raise ValueError(
+            f"Sales GST rows have inconsistent group codes or jurisdiction "
+            f"types for Document No_: {no_}"
+        )
+
+    gst_group_code, jurisdiction_type = gst_values.pop()
+    description_query = f"""
+        SELECT [Description]
+        FROM {GST_CODE_TABLE}
+        WHERE [Code] = ?
+    """
+    cursor.execute(description_query, (gst_group_code,))
+    description_row = cursor.fetchone()
+    if not description_row or not description_row[0]:
+        raise ValueError(f"No GST description found for GST Group code: {gst_group_code}")
+
+    percentage_match = re.search(r"(\d+(?:\.\d+)?)\s*%", str(description_row[0]))
+    if not percentage_match:
+        raise ValueError(
+            f"Could not find a GST percentage in description for GST Group code: "
+            f"{gst_group_code}"
+        )
+
+    return {
+        "GST Group Code": gst_group_code,
+        "GST Jurisdiction Type": jurisdiction_type,
+        "GST Rate": float(percentage_match.group(1)),
+    }
+
 
 def fix_sales_order_email_status():
     conn = None
@@ -328,6 +398,7 @@ def check_sales_order_pending_emails():
                             'approver_email': email_row[1] if len(email_row) > 2 else "",
                             'creator_name': creator_name,
                         }
+                        header_data.update(fetch_sales_order_gst_details(cursor, no_))
 
                         # Get state info safely
                         consignee_state_code = header_data.get('consignee_state_code', '')

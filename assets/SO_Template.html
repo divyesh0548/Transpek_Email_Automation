@@ -388,18 +388,18 @@
                 <p>Commission Value : {{ total_commission_value }}</p>
             </div>
             <div class="gst_amount_data">
-                {% if show_igst %}
+                {% if show_gst and gst_jurisdiction_type == 1 %}
                 <div class="gst_amount_data_row">
-                    <span style="width: 150px; display: inline-block;">IGST 18%</span>
+                    <span style="width: 150px; display: inline-block;">IGST {{ igst_rate_display }}%</span>
                     <span>₹ {{ igst_amount }}</span>
                 </div>
-                {% else %}
+                {% elif show_gst %}
                 <div class="gst_amount_data_row">
-                    <span style="width: 150px; display: inline-block;">CGST 9%</span>
+                    <span style="width: 150px; display: inline-block;">CGST {{ cgst_rate_display }}%</span>
                     <span>₹ {{ cgst_amount }}</span>
                 </div>
                 <div class="gst_amount_data_row" >
-                    <span style="width: 150px; display: inline-block;">SGST 9%</span>
+                    <span style="width: 150px; display: inline-block;">SGST {{ sgst_rate_display }}%</span>
                     <span>₹ {{ sgst_amount }}</span>
                 </div>
                 {% endif %}

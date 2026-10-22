@@ -224,32 +224,29 @@ def prepare_sales_order_template_data(header_data: Dict, line_data: List[Dict]) 
     # Calculate subtotal (basic + commission)
     subtotal = basic_total
     
-    # GST logic for domestic sales orders (SD):
-    # - Inter-state -> IGST 18%
-    # - Intra-state -> CGST 9% + SGST 9%
-    inter_state_raw = header_data.get('Inter_state', False)
-    if isinstance(inter_state_raw, str):
-        inter_state = inter_state_raw.strip().lower() in ('1', 'true', 'yes')
+    gst_group_code = str(header_data.get('GST Group Code') or '').strip()
+    show_gst = bool(gst_group_code)
+    if show_gst:
+        try:
+            gst_jurisdiction_type = int(header_data['GST Jurisdiction Type'])
+            gst_rate = float(header_data['GST Rate'])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("Sales GST details are incomplete or invalid") from exc
+        if gst_jurisdiction_type not in (0, 1):
+            raise ValueError(f"Unsupported GST Jurisdiction Type: {gst_jurisdiction_type}")
+        if not 0 <= gst_rate <= 100:
+            raise ValueError(f"Invalid GST rate: {gst_rate}")
     else:
-        inter_state = bool(inter_state_raw)
+        gst_jurisdiction_type = None
+        gst_rate = 0.0
 
-    cgst_rate = 0.0
-    sgst_rate = 0.0
-    igst_rate = 0.0
-    cgst_amount = 0.0
-    sgst_amount = 0.0
-    igst_amount = 0.0
+    cgst_rate = gst_rate / 2 if show_gst and gst_jurisdiction_type == 0 else 0.0
+    sgst_rate = cgst_rate
+    igst_rate = gst_rate if show_gst and gst_jurisdiction_type == 1 else 0.0
 
-    if inter_state:
-        # Inter-state: IGST 18%
-        igst_rate = 18.0
-        igst_amount = subtotal * (igst_rate / 100)
-    else:
-        # Intra-state: CGST 9% + SGST 9%
-        cgst_rate = 9.0
-        sgst_rate = 9.0
-        cgst_amount = subtotal * (cgst_rate / 100)
-        sgst_amount = subtotal * (sgst_rate / 100)
+    cgst_amount = subtotal * (cgst_rate / 100)
+    sgst_amount = subtotal * (sgst_rate / 100)
+    igst_amount = subtotal * (igst_rate / 100)
 
     grand_total = subtotal + cgst_amount + sgst_amount + igst_amount
     
@@ -349,7 +346,11 @@ def prepare_sales_order_template_data(header_data: Dict, line_data: List[Dict]) 
         'sgst_amount': format_currency(sgst_amount),
         'igst_rate': igst_rate,
         'igst_amount': format_currency(igst_amount),
-        'show_igst': inter_state,
+        'show_gst': show_gst,
+        'gst_jurisdiction_type': gst_jurisdiction_type,
+        'cgst_rate_display': f"{cgst_rate:g}",
+        'sgst_rate_display': f"{sgst_rate:g}",
+        'igst_rate_display': f"{igst_rate:g}",
         'grand_total': format_currency(grand_total),
         'amount_in_words': convert_number_to_words(grand_total),
         

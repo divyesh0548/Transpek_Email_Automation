@@ -35,6 +35,16 @@ class PurchaseDatabaseQueryError(Exception):
         super().__init__(str(original_error))
 
 
+def _purchase_debug_enabled():
+    debug_enabled = os.getenv("PURCHASE_ORDER_DEBUG", "false").strip().lower()
+    return debug_enabled in {"1", "true", "yes", "on"}
+
+
+def _purchase_debug_print(message):
+    if _purchase_debug_enabled():
+        print(message)
+
+
 def fetch_purchase_line_items(no_):
     items_list = []
     current_table = PURCHASE_LINE_TABLE
@@ -49,7 +59,7 @@ def fetch_purchase_line_items(no_):
     try:
         with pyodbc.connect(get_odbc_connection_string()) as conn:
             cursor = conn.cursor()
-            print(f"Querying table {current_table} for Purchase No_: {no_}")
+            _purchase_debug_print(f"Querying table {current_table} for Purchase No_: {no_}")
             cursor.execute(query_lines, (no_,))
             line_items = cursor.fetchall()
             
@@ -75,11 +85,11 @@ def fetch_purchase_line_items(no_):
                     ORDER BY [Line No_] ASC
                 """
                 current_table = PURCHASE_HSN_GST_TABLE
-                print(f"Querying table {current_table} for Purchase No_: {no_}")
+                _purchase_debug_print(f"Querying table {current_table} for Purchase No_: {no_}")
                 cursor.execute(query_hsn_codes, (no_,))
                 hsn_codes = cursor.fetchall()
                 if len(hsn_codes) != len(items_list):
-                    print(
+                    _purchase_debug_print(
                         f"WARNING: Found {len(hsn_codes)} HSN codes for "
                         f"{len(items_list)} line items on Purchase No_: {no_}"
                     )
@@ -91,7 +101,12 @@ def fetch_purchase_line_items(no_):
             cursor.close()  # Close cursor AFTER processing all rows
         
     except Exception as e:
-        print(f"Error querying table {current_table} for Purchase No_ {no_}: {str(e)}")
+        if _purchase_debug_enabled():
+            _purchase_debug_print(
+                f"Error querying table {current_table} for Purchase No_ {no_}: {str(e)}"
+            )
+        else:
+            print(f"Error fetching line items: {str(e)}")
     
     return items_list
 
@@ -103,7 +118,7 @@ def fetch_purchase_gst_details(cursor, no_):
         FROM {PURCHASE_HSN_GST_TABLE}
         WHERE [Document No_] = ?
     """
-    print(f"Querying table {current_table} for Purchase No_: {no_}")
+    _purchase_debug_print(f"Querying table {current_table} for Purchase No_: {no_}")
     try:
         cursor.execute(purchase_gst_query, (no_,))
     except pyodbc.Error as exc:
@@ -153,7 +168,7 @@ def fetch_purchase_gst_details(cursor, no_):
         WHERE [Code] = ?
     """
     current_table = GST_CODE_TABLE
-    print(f"Querying table {current_table} for GST Group code: {gst_group_code}")
+    _purchase_debug_print(f"Querying table {current_table} for GST Group code: {gst_group_code}")
     try:
         cursor.execute(gst_description_query, (gst_group_code,))
     except pyodbc.Error as exc:
@@ -258,7 +273,7 @@ def check_purchase_order_pending_emails():
                     )
             """
             
-            print(f"Querying tables {current_table} for pending purchase emails")
+            _purchase_debug_print(f"Querying tables {current_table} for pending purchase emails")
             cursor.execute(query)
             pending_emails = cursor.fetchall()
             
@@ -277,7 +292,7 @@ def check_purchase_order_pending_emails():
                             WHERE [No_] = ?
                         """
                     current_table = PURCHASE_HEADER_MAIN
-                    print(f"Querying table {current_table} for Purchase No_: {no_}")
+                    _purchase_debug_print(f"Querying table {current_table} for Purchase No_: {no_}")
                     cursor2.execute(query_main, (no_,))
                     main_colnames = [c[0] for c in cursor2.description]
                     main_row = cursor2.fetchone()
@@ -289,7 +304,7 @@ def check_purchase_order_pending_emails():
                         WHERE [No_] = ?
                     """
                     current_table = PURCHASE_HEADER_STATE
-                    print(f"Querying table {current_table} for Purchase No_: {no_}")
+                    _purchase_debug_print(f"Querying table {current_table} for Purchase No_: {no_}")
                     cursor2.execute(state_query, (no_,))
                     state_data = cursor2.fetchone()
 
@@ -301,7 +316,7 @@ def check_purchase_order_pending_emails():
                         WHERE [No_] = ?
                     """
                     current_table = PURCHASE_HEADER_GST
-                    print(f"Querying table {current_table} for Purchase No_: {no_}")
+                    _purchase_debug_print(f"Querying table {current_table} for Purchase No_: {no_}")
                     cursor2.execute(gst_query, (no_,))
                     gst_data = cursor2.fetchone()
 
@@ -311,7 +326,7 @@ def check_purchase_order_pending_emails():
                         WHERE [Code] = ?    
                     """
                     current_table = PAYMENT_TERMS_CODE_TABLE
-                    print(f"Querying table {current_table} for payment terms")
+                    _purchase_debug_print(f"Querying table {current_table} for payment terms")
                     cursor2.execute(payment_terms_query, (main_rd.get("Payment Terms Code"),))
                     payment_terms_data = cursor2.fetchone()
                     payment_terms_description = payment_terms_data[0] if payment_terms_data else ""
@@ -323,7 +338,7 @@ def check_purchase_order_pending_emails():
                     """
 
                     current_table = SHIPMENT_METHOD_TABLE
-                    print(f"Querying table {current_table} for shipment method")
+                    _purchase_debug_print(f"Querying table {current_table} for shipment method")
                     cursor2.execute(shipment_method_query, (main_rd.get("Shipment Method Code"),))
                     shipment_method_data = cursor2.fetchone()
                     shipment_method = shipment_method_data[0] if shipment_method_data else ""
@@ -335,7 +350,7 @@ def check_purchase_order_pending_emails():
                         WHERE [Code] = ?
                     """
                     current_table = TRANSACTION_SPECIFICATION_TABLE
-                    print(f"Querying table {current_table} for transaction specification")
+                    _purchase_debug_print(f"Querying table {current_table} for transaction specification")
                     cursor2.execute(transaction_specification_query, (main_rd.get("Transaction Specification"),))
                     transaction_specification_data = cursor2.fetchone()
                     transaction_specification = transaction_specification_data[0] if transaction_specification_data else ""
@@ -347,7 +362,7 @@ def check_purchase_order_pending_emails():
                         ORDER BY [Line No_] ASC
                     """
                     current_table = PURCHASE_COMMENTS_TABLE
-                    print(f"Querying table {current_table} for Purchase No_: {no_}")
+                    _purchase_debug_print(f"Querying table {current_table} for Purchase No_: {no_}")
                     cursor2.execute(purchase_comments_query, (no_,))
                     purchase_comments = "\n".join(
                         str(comment_row[0]).strip()
@@ -460,11 +475,21 @@ def check_purchase_order_pending_emails():
             # print(f"{'='*60}\n")
                 
     except PurchaseDatabaseQueryError as e:
-        print(f"Database error while querying table {e.table_name}: {e.original_error}")
+        if _purchase_debug_enabled():
+            _purchase_debug_print(
+                f"Database error while querying table {e.table_name}: {e.original_error}"
+            )
+        else:
+            print(f"Database error: {e.original_error}")
         if conn:
             conn.rollback()
     except pyodbc.Error as e:
-        print(f"Database error while querying table {current_table}: {str(e)}")
+        if _purchase_debug_enabled():
+            _purchase_debug_print(
+                f"Database error while querying table {current_table}: {str(e)}"
+            )
+        else:
+            print(f"Database error: {str(e)}")
         if conn:
             conn.rollback()
     except Exception as e:
