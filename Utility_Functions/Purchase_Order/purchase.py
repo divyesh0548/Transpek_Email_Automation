@@ -26,6 +26,13 @@ _PURCHASE_HEADER_MAIN_COLUMNS = (
 PURCHASE_HEADER_MAIN_SELECT = ", ".join(_PURCHASE_HEADER_MAIN_COLUMNS)
 
 
+class PurchaseDatabaseQueryError(Exception):
+    def __init__(self, table_name, original_error):
+        self.table_name = table_name
+        self.original_error = original_error
+        super().__init__(str(original_error))
+
+
 def fetch_purchase_line_items(no_):
     items_list = []
     current_table = PURCHASE_LINE_TABLE
@@ -95,7 +102,10 @@ def fetch_purchase_gst_details(cursor, no_):
         WHERE [Document No_] = ?
     """
     print(f"Querying table {current_table} for Purchase No_: {no_}")
-    cursor.execute(purchase_gst_query, (no_,))
+    try:
+        cursor.execute(purchase_gst_query, (no_,))
+    except pyodbc.Error as exc:
+        raise PurchaseDatabaseQueryError(current_table, exc) from exc
     purchase_gst_rows = cursor.fetchall()
     if not purchase_gst_rows:
         raise ValueError(f"No purchase GST rows found for Document No_: {no_}")
@@ -142,7 +152,10 @@ def fetch_purchase_gst_details(cursor, no_):
     """
     current_table = GST_CODE_TABLE
     print(f"Querying table {current_table} for GST Group code: {gst_group_code}")
-    cursor.execute(gst_description_query, (gst_group_code,))
+    try:
+        cursor.execute(gst_description_query, (gst_group_code,))
+    except pyodbc.Error as exc:
+        raise PurchaseDatabaseQueryError(current_table, exc) from exc
     gst_description_row = cursor.fetchone()
     if not gst_description_row or not gst_description_row[0]:
         raise ValueError(f"No GST description found for GST Group code: {gst_group_code}")
@@ -444,6 +457,10 @@ def check_purchase_order_pending_emails():
             #     print(f"  ... and {len(unsubmitted_records) - 5} more record(s)")
             # print(f"{'='*60}\n")
                 
+    except PurchaseDatabaseQueryError as e:
+        print(f"Database error while querying table {e.table_name}: {e.original_error}")
+        if conn:
+            conn.rollback()
     except pyodbc.Error as e:
         print(f"Database error while querying table {current_table}: {str(e)}")
         if conn:
