@@ -896,14 +896,16 @@ def send_sales_approval_email(data, line_items):
         # msg['To'] = "divyeshparmar0909@gmail.com"  # Hardcoded for testing, replace with recipient_email in production
         base_url = os.getenv('BASE_URL', 'http://localhost:5000')
         req_id = data.get('no_', '')
-        
-        # Set subject based on req_id prefix
+        creator_name = (data.get('creator_name') or '').strip()
+        by_creator = f" - by {creator_name}" if creator_name else ""
+
+        # Set subject based on req_id prefix. This mail goes to the approver only.
         if req_id.startswith('SE'):
-            subject_text = f"Sales Export Order Approval Required - {req_id}"
+            subject_text = f"Sales Export Order Approval Required - {req_id}{by_creator}"
         elif req_id.startswith('SD'):
-            subject_text = f"Sales Domestic Order Approval Required - {req_id}"
+            subject_text = f"Sales Domestic Order Approval Required - {req_id}{by_creator}"
         else:
-            subject_text = f"Sales Order Approval Required - {req_id}"
+            subject_text = f"Sales Order Approval Required - {req_id}{by_creator}"
         msg['Subject'] = subject_text
         encrypted_req_id = encrypt(str(req_id))
 
