@@ -1,7 +1,0 @@
-Apply the GST logic in sales order as same as purchase order.
-
-Also check in Im purchase requisition.
-
-
-birju.joshi@transpek.com
-ankur.patel@transpek.com

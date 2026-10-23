@@ -935,7 +935,7 @@ def send_sales_approval_email(data, line_items):
                  
 
             if not pdf_buffer:
-                print(f"❌ Failed to generate PDF for document {req_id}")
+                print(f" Failed to generate PDF for document {req_id}")
                 return False
 
             # Attach PDF to email
@@ -945,7 +945,7 @@ def send_sales_approval_email(data, line_items):
             msg.attach(pdf_attachment)
 
         except Exception as e:
-            print(f"❌ Error generating PDF for document {req_id}: {e}")
+            print(f" Error generating PDF for document {req_id}: {e}")
             return False
 
         # Send email (with DNS/network retries)

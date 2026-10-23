@@ -1,3 +1,1 @@
-Purchase order payment terms implemented - Testing pending.
-Purchase order delivery terms/shipment method implemented - Testing pending.
-Purchase order delivery instructions implemented - Testing pending.
+

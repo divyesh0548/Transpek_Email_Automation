@@ -118,7 +118,7 @@ def prepare_template_data(header_data: Dict, line_data: List[Dict]) -> Dict:
     # Prepare line items with department name
     prepared_line_items = []
     for item in line_data:
-        stock_value = float(item.get('Inventory', '0'))
+        stock_value = float(item.get('Item Inventory', '0'))
         formatted_stock = f"{stock_value:.1f}" if stock_value % 1 != 0 else str(int(stock_value))
         prepared_item = {
             'item_code': item.get('No_', ''),
@@ -129,7 +129,7 @@ def prepare_template_data(header_data: Dict, line_data: List[Dict]) -> Dict:
             'rate': item.get('Unit Cost', '0'),
             'value': item.get('Line Amount', '0'),
             'job_card_no': item.get('Job No_', ''),
-            # 'stock_on_hand': item.get('Inventory', '0'),
+            # 'stock_on_hand': item.get('Item Inventory', '0'),
             'stock_on_hand': formatted_stock,
             'delivery_date': format_date_simple(item.get('Expected Receipt Date', ''))
         }
