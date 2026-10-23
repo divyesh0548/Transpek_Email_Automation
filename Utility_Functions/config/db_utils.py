@@ -37,11 +37,11 @@ load_dotenv()
 
 def background_email_checker():
     print("Checking for pending emails...")
-    check_purchase_order_pending_emails()
-    check_sales_order_pending_emails()
-    check_job_task_pending_emails()
-    check_IM_Purchase_pending_emails()
-    check_IM_Purchase_pending_emails_for_accountants()
+    # check_purchase_order_pending_emails()
+    # check_sales_order_pending_emails()
+    # check_job_task_pending_emails()
+    # check_IM_Purchase_pending_emails()
+    # check_IM_Purchase_pending_emails_for_accountants()
     # Get dynamic reminder duration from database
     # reminder_hours, reminder_days = get_time_configuration()
     # print(f"Using reminder duration: {reminder_hours} hours, {reminder_days} days")
@@ -83,8 +83,9 @@ def background_email_checker():
 
 
 def backgroud_email_status_fix():
-    fix_purchase_order_email_status()
-    fix_sales_order_email_status()
-    fix_job_task_email_status()
-    fix_IM_Purchase_email_status()
+    print("Fixing email status...")
+    # fix_purchase_order_email_status()
+    # fix_sales_order_email_status()
+    # fix_job_task_email_status()
+    # fix_IM_Purchase_email_status()
 
