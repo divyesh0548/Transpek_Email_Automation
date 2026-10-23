@@ -1,0 +1,1 @@
+Implement a way so that If any error occurs, then program will mail it to Ketan sir and other person. Indicating that program failed.

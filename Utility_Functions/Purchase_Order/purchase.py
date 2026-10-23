@@ -24,6 +24,7 @@ _PURCHASE_HEADER_MAIN_COLUMNS = (
     "[Payment Terms Code]",
     "[Shipment Method Code]",
     "[Transaction Specification]",
+    "[Assigned User ID]",
 )
 PURCHASE_HEADER_MAIN_SELECT = ", ".join(_PURCHASE_HEADER_MAIN_COLUMNS)
 
@@ -43,6 +44,12 @@ def _purchase_debug_enabled():
 def _purchase_debug_print(message):
     if _purchase_debug_enabled():
         print(message)
+
+
+def _format_assigned_user_name(assigned_user_id):
+    account_name = str(assigned_user_id or "").strip().rsplit("\\", 1)[-1]
+    name_parts = [part for part in re.split(r"[._\s]+", account_name) if part]
+    return " ".join(part.capitalize() for part in name_parts)
 
 
 def fetch_purchase_line_items(no_):
@@ -383,6 +390,11 @@ def check_purchase_order_pending_emails():
                     payment_terms_code = main_rd.get("Payment Terms Code")
                     approver_email = email_row[1]
                     creator_email = email_row[2]
+                    assigned_user_id = main_rd.get("Assigned User ID")
+                    creator_name = (
+                        _format_assigned_user_name(assigned_user_id)
+                        or extract_name_from_email(creator_email)
+                    )
 
                     header_data = {
                         'Document Type': 1,  # Default to 1
@@ -403,7 +415,8 @@ def check_purchase_order_pending_emails():
                         **purchase_gst_details,
                         'Approver Mail ID': approver_email,
                         'Creator Mail ID': creator_email,
-                        'Creator Name': extract_name_from_email(creator_email)
+                        'Assigned User ID': assigned_user_id,
+                        'Creator Name': creator_name,
                     }
 
                     items_list = fetch_purchase_line_items(email_row[0])
@@ -519,7 +532,10 @@ def send_purchase_approval_email(data, line_items):
         print(f"[DEBUG] Recipient email for document {data.get('No_', '')}: {recipient_email}")
         msg['To'] = recipient_email
         # msg['To'] = "divyeshparmar0909@gmail.com" # For testing purposes, override recipient email
-        subject_text = f"Purchase Order Approval Required - {data.get('No_', '')}"
+        subject_text = (
+            f"Purchase Order Approval Required - {data.get('No_', '')}"
+            f" - by {data.get('Creator Name', '')}"
+        )
         msg['Subject'] = subject_text
         base_url = os.getenv('BASE_URL', 'http://localhost:5000')
         req_id = data.get('No_', '')
