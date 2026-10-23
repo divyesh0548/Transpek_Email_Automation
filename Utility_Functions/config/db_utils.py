@@ -6,10 +6,16 @@ from Utility_Functions.Sales_Order.sales_order import check_sales_order_pending_
 from Utility_Functions.JOB_Task.job_task import check_job_task_pending_emails, fix_job_task_email_status
 from Utility_Functions.config.reminder_email_service import send_reminders, reset_email_status_for_testing, send_reminders_table1
 from Utility_Functions.config.database import get_odbc_connection_string
+import os
 import pyodbc
 
 # Load environment variables
 load_dotenv()
+
+
+def _module_email_enabled(env_name):
+    """One switch runs both the pending-email check and the status-fix job."""
+    return os.getenv(env_name, "true").strip().lower() in ("1", "true", "yes")
 
 
 # def get_time_configuration():
@@ -37,11 +43,15 @@ load_dotenv()
 
 def background_email_checker():
     print("Checking for pending emails...")
-    # check_purchase_order_pending_emails()
-    # check_sales_order_pending_emails()
-    # check_job_task_pending_emails()
-    # check_IM_Purchase_pending_emails()
-    # check_IM_Purchase_pending_emails_for_accountants()
+    if _module_email_enabled("ENABLE_PURCHASE_ORDER_EMAIL"):
+        check_purchase_order_pending_emails()
+    if _module_email_enabled("ENABLE_SALES_ORDER_EMAIL"):
+        check_sales_order_pending_emails()
+    if _module_email_enabled("ENABLE_JOB_CARD_EMAIL"):
+        check_job_task_pending_emails()
+    if _module_email_enabled("ENABLE_IM_PURCHASE_EMAIL"):
+        check_IM_Purchase_pending_emails()
+        check_IM_Purchase_pending_emails_for_accountants()
     # Get dynamic reminder duration from database
     # reminder_hours, reminder_days = get_time_configuration()
     # print(f"Using reminder duration: {reminder_hours} hours, {reminder_days} days")
@@ -84,8 +94,12 @@ def background_email_checker():
 
 def backgroud_email_status_fix():
     print("Fixing email status...")
-    # fix_purchase_order_email_status()
-    # fix_sales_order_email_status()
-    # fix_job_task_email_status()
-    # fix_IM_Purchase_email_status()
+    if _module_email_enabled("ENABLE_PURCHASE_ORDER_EMAIL"):
+        fix_purchase_order_email_status()
+    if _module_email_enabled("ENABLE_SALES_ORDER_EMAIL"):
+        fix_sales_order_email_status()
+    if _module_email_enabled("ENABLE_JOB_CARD_EMAIL"):
+        fix_job_task_email_status()
+    if _module_email_enabled("ENABLE_IM_PURCHASE_EMAIL"):
+        fix_IM_Purchase_email_status()
 
