@@ -16,6 +16,7 @@ flask_session/
 
 # Logs
 *.log
+logs/
 
 # OS files
 .DS_Store

@@ -1,1 +1,25 @@
 Implement a way so that If any error occurs, then program will mail it to Ketan sir and other person. Indicating that program failed.
+
+Prompt for warning emails = 
+```
+These are unnecessary scenarios, and won't happen anytime in future.
+
+here is the scenarios where I want to trigger emails.
+
+1. Missing DB columns
+2. DB connection failure
+3. Approver or creator email is missing, so It won't trigger email.
+4. Accountant emails are not present. (at least one must be present in order to complete the cycle)
+
+The real question is how to manage sending warning emails, so that they are not triggered repetedly. There are no column in DB to store that.
+
+How will we manage that? 
+
+According to that warning emails should trigger at every 12 hours (for same cause). If cause is different then it must be sent regardless of previous email timing.
+
+For now give me ideas, do not implement anything. 
+```
+
+
+
+Add creator name in approval email sent to approver. Currently it is added in Purchase order.

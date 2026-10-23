@@ -12,6 +12,15 @@ import re
 import uuid
 from Utility_Functions.config.secure import encrypt, decrypt
 from Utility_Functions.config.utility_functions import format_utc_timestamp_as_ist, get_utc_timestamp, smtp_send_message
+from Utility_Functions.config.warning_alerts import (
+    MODULE_JOB_CARD,
+    clear_missing_approver,
+    clear_missing_creator,
+    notify_missing_approver,
+    notify_missing_creator,
+    report_checker_exception,
+    sweep_module_order_alerts,
+)
 
 # Job card columns used by check_job_task_pending_emails (see job_main_table.txt)
 _JOB_CARD_MAIN_PENDING_COLUMNS = (
@@ -187,6 +196,8 @@ def check_job_task_pending_emails():
             if not conn:
                 print("Failed to connect to database")
                 return
+
+            sweep_module_order_alerts(MODULE_JOB_CARD)
             
             # STEP 2: Continue with the original query
             query = f"""
@@ -271,6 +282,18 @@ def check_job_task_pending_emails():
                     print(f"Processing JOB data with No : {no_}")
                     current_time = get_utc_timestamp()
 
+                    approver_missing = not approver_email or not str(approver_email).strip()
+                    creator_missing = not creator_email or not str(creator_email).strip()
+                    if creator_missing:
+                        print(f"❌ Invalid Creator Email ID for JOB Task No_: {no_}")
+                        notify_missing_creator(MODULE_JOB_CARD, no_)
+                    if approver_missing:
+                        print(f"❌ Invalid Approver Email ID for JOB Task No_: {no_}")
+                        notify_missing_approver(MODULE_JOB_CARD, no_)
+                    if approver_missing or creator_missing:
+                        print(f"Skipping Job Card {no_}; database not updated.")
+                        continue
+
                     try:
                         email_sent = send_job_card_approval_email(header_data, Tasks_list)
                         if not email_sent:
@@ -289,9 +312,12 @@ def check_job_task_pending_emails():
                             (current_time, no_),
                             operation_name=f"Job approval-email status update for {no_}",
                         )
+                        clear_missing_approver(MODULE_JOB_CARD, no_)
+                        clear_missing_creator(MODULE_JOB_CARD, no_)
 
                     except Exception as e:
                         print(f"Error sending approval email for JOB Task No_ {no_}: {str(e)}")
+                        report_checker_exception(MODULE_JOB_CARD, e)
                         conn.rollback()
                 else:
                     print(f"No secondary data found for JOB Task No_ {no_}")
@@ -328,10 +354,12 @@ def check_job_task_pending_emails():
 
     except pyodbc.Error as e:
         print(f"Database error: {str(e)}")
+        report_checker_exception(MODULE_JOB_CARD, e)
         if conn:
             conn.rollback()
     except Exception as e:
         print(f"Error checking pending emails: {str(e)}")
+        report_checker_exception(MODULE_JOB_CARD, e)
         if conn:
             conn.rollback()
     finally:
@@ -427,6 +455,7 @@ def send_job_card_approval_email(data, line_items):
 
 def send_job_card_response_email_to_customer(request_id, response_status, reason=None, timestamp=None):
     try:
+        creator_email = None
         sql = f"""SELECT [Creator Mail ID] FROM {JOB_CARD_MAIN_TABLE} WHERE [No_] = ?"""
         try:
             with pyodbc.connect(get_odbc_connection_string(), timeout=30) as conn:
@@ -441,8 +470,9 @@ def send_job_card_response_email_to_customer(request_id, response_status, reason
             response= {'success': False, 'message': f'{error_string} Error in data fetching'}
         
 
-        if not creator_email:
+        if not creator_email or not str(creator_email).strip():
             print(f"ERROR: No creator email found for document {request_id}")
+            notify_missing_creator(MODULE_JOB_CARD, request_id)
             response= {'success': False, 'message': 'No creator email found'}
             return response
         
@@ -489,6 +519,8 @@ def send_job_card_response_email_to_customer(request_id, response_status, reason
             smtp_send_message(msg)
         except Exception as e:
             return {'success': False, 'message': f'Job response email failed: {e}'}
+
+        clear_missing_creator(MODULE_JOB_CARD, request_id)
 
         try:
             sql = f"""

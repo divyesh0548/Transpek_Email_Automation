@@ -1,6 +1,15 @@
 from Utility_Functions.config.constants import SALES_ORDER_ITEMS_TABLE, SALES_ORDER_EMAIL_TABLE, SALES_ORDER_GST, SALES_ORDER_MAIN, SALES_PERSON_TABLE, SALES_ORDER_SHIPMENT_TABLE, SALES_ORDER_TPK_DETAILS_TABLE, SALES_ORDER_SHIP_TO_ADDRESS_TABLE, SALES_ORDER_CUSTOMER_TABLE, SALES_ORDER_SECONDARY_ITEMS_TABLE, SALES_HSN_GST_TABLE, GST_CODE_TABLE, APPROVAL_ENTRY_TABLE, COUNTRY_REGION_CODES_TABLE, TRANSPORT_METHOD_CODE_TABLE, PAYMENT_TERMS_CODE_TABLE, SHIPMENT_METHOD_TABLE, ENTRY_EXIT_POINTS_TABLE, CODE_CITY_TABLE
 from Utility_Functions.config.database import execute_update_with_retry, get_odbc_connection_string, row_to_dict, get_table_schema, get_engine, get_state_info
 from Utility_Functions.config.utility_functions import extract_name_from_email, format_utc_timestamp_as_ist, get_utc_timestamp, smtp_send_message
+from Utility_Functions.config.warning_alerts import (
+    MODULE_SALES_ORDER,
+    clear_missing_approver,
+    clear_missing_creator,
+    notify_missing_approver,
+    notify_missing_creator,
+    report_checker_exception,
+    sweep_module_order_alerts,
+)
 import pyodbc
 import uuid
 from datetime import datetime
@@ -238,6 +247,8 @@ def check_sales_order_pending_emails():
                 print("Failed to connect to database")
                 return
 
+            sweep_module_order_alerts(MODULE_SALES_ORDER)
+
             # STEP 2: Fetch pending emails
             query = f"""
                 SELECT 
@@ -434,8 +445,20 @@ def check_sales_order_pending_emails():
                         current_time = get_utc_timestamp()
 
                         approver_email_id = email_row[1]
+                        creator_email_id = email_row[2] if len(email_row) > 2 else ""
+                        approver_missing = not approver_email_id or not str(approver_email_id).strip()
+                        creator_missing = not creator_email_id or not str(creator_email_id).strip()
+                        if creator_missing:
+                            print(f"❌ Invalid Creator Email ID for Order No: {email_row[0]}")
+                            notify_missing_creator(MODULE_SALES_ORDER, email_row[0])
+                        if approver_missing:
+                            print(f"❌ Invalid Approver Email ID for Order No: {email_row[0]}")
+                            notify_missing_approver(MODULE_SALES_ORDER, email_row[0])
+                        if approver_missing or creator_missing:
+                            print(f"Skipping Sales Order {email_row[0]}; database not updated.")
+                            continue
 
-                        if approver_email_id and approver_email_id.strip():
+                        if approver_email_id and str(approver_email_id).strip():
                             email_sent = send_sales_approval_email(header_data, items_list)
                             if not email_sent:
                                 print(f"❌ Sales approval email failed for {email_row[0]}; database not updated")
@@ -453,9 +476,9 @@ def check_sales_order_pending_emails():
                                 (current_time, email_row[0]),
                                 operation_name=f"Domestic sales approval-email status update for {email_row[0]}",
                             )
+                            clear_missing_approver(MODULE_SALES_ORDER, email_row[0])
+                            clear_missing_creator(MODULE_SALES_ORDER, email_row[0])
                             print(f"✅ Successfully processed Domestic order: {no_}")
-                        else:
-                            print(f"❌ Invalid Approver Email ID for Order No: {email_row[0]}")
                         
                     
                 
@@ -755,8 +778,20 @@ def check_sales_order_pending_emails():
                         current_time = get_utc_timestamp()
 
                         approver_email_id = email_row[1]
+                        creator_email_id = email_row[2] if len(email_row) > 2 else ""
+                        approver_missing = not approver_email_id or not str(approver_email_id).strip()
+                        creator_missing = not creator_email_id or not str(creator_email_id).strip()
+                        if creator_missing:
+                            print(f"❌ Invalid Creator Email ID for Order No: {email_row[0]}")
+                            notify_missing_creator(MODULE_SALES_ORDER, email_row[0])
+                        if approver_missing:
+                            print(f"❌ Invalid Approver Email ID for Order No: {email_row[0]}")
+                            notify_missing_approver(MODULE_SALES_ORDER, email_row[0])
+                        if approver_missing or creator_missing:
+                            print(f"Skipping Sales Order {email_row[0]}; database not updated.")
+                            continue
 
-                        if approver_email_id and approver_email_id.strip():
+                        if approver_email_id and str(approver_email_id).strip():
                             email_sent = send_sales_approval_email(header_data, items_data)
                             if not email_sent:
                                 print(f"❌ Sales approval email failed for {email_row[0]}; database not updated")
@@ -774,14 +809,15 @@ def check_sales_order_pending_emails():
                                 (current_time, email_row[0]),
                                 operation_name=f"Export sales approval-email status update for {email_row[0]}",
                             )
+                            clear_missing_approver(MODULE_SALES_ORDER, email_row[0])
+                            clear_missing_creator(MODULE_SALES_ORDER, email_row[0])
                             print(f"✅ Successfully processed Export order: {no_}")
-                        else:
-                            print(f"❌ Invalid Approver Email ID for Order No: {email_row[0]}")
 
                 except Exception as order_error:
                     print(f"❌ Error processing order {no_}: {str(order_error)}")
                     import traceback
                     traceback.print_exc()
+                    report_checker_exception(MODULE_SALES_ORDER, order_error)
                     # Continue to next order instead of stopping
                     continue
 
@@ -823,12 +859,14 @@ def check_sales_order_pending_emails():
         print(f"❌ Database error: {str(e)}")
         import traceback
         traceback.print_exc()
+        report_checker_exception(MODULE_SALES_ORDER, e)
         if conn:
             conn.rollback()
     except Exception as e:
         print(f"❌ Error checking pending emails: {str(e)}")
         import traceback
         traceback.print_exc()
+        report_checker_exception(MODULE_SALES_ORDER, e)
         if conn:
             conn.rollback()
     finally:
@@ -968,6 +1006,7 @@ def send_sales_approval_email(data, line_items):
 def send_sales_order_response_email_to_customer(request_id, response_status, status, timestamp, client_data, reason=None):
     """Send response email to creator after approval/rejection"""
     try:
+        creator_email = None
         sql = f"""SELECT [Creator Mail ID] FROM {SALES_ORDER_EMAIL_TABLE} WHERE [No_] = ?"""
         try:
             with pyodbc.connect(get_odbc_connection_string(), timeout=30) as conn:
@@ -987,6 +1026,11 @@ def send_sales_order_response_email_to_customer(request_id, response_status, sta
         smtp_user = os.getenv("SMTP_USERNAME")
         smtp_password = os.getenv("SMTP_PASSWORD")
         
+        if not creator_email or not str(creator_email).strip():
+            print(f"ERROR: Creator email not found for sales document {request_id}")
+            notify_missing_creator(MODULE_SALES_ORDER, request_id)
+            return False
+
         if not all([smtp_server, smtp_user, smtp_password]):
             print("ERROR: Email configuration incomplete")
             return False
@@ -1028,6 +1072,8 @@ def send_sales_order_response_email_to_customer(request_id, response_status, sta
         except Exception as e:
             print(f"ERROR: Sales response email failed for {request_id}: {e}")
             return False
+
+        clear_missing_creator(MODULE_SALES_ORDER, request_id)
 
         try:
             sql = f"""

@@ -12,6 +12,15 @@ import re
 import uuid
 from Utility_Functions.config.secure import encrypt, decrypt
 from Utility_Functions.config.utility_functions import format_utc_timestamp_as_ist, get_utc_timestamp, smtp_send_message
+from Utility_Functions.config.warning_alerts import (
+    MODULE_PURCHASE_ORDER,
+    clear_missing_approver,
+    clear_missing_creator,
+    notify_missing_approver,
+    notify_missing_creator,
+    report_checker_exception,
+    sweep_module_order_alerts,
+)
 
 # Purchase Header columns used by check_purchase_order_pending_emails (see purchase_main_table.txt)
 _PURCHASE_HEADER_MAIN_COLUMNS = (
@@ -262,6 +271,8 @@ def check_purchase_order_pending_emails():
             if not conn:
                 print("Failed to connect to database")
                 return
+
+            sweep_module_order_alerts(MODULE_PURCHASE_ORDER)
             
             # STEP 2: Continue with the original query
             query = f"""
@@ -428,8 +439,19 @@ def check_purchase_order_pending_emails():
                     current_time = get_utc_timestamp()
 
                     approver_email_id = email_row[1]
+                    approver_missing = not approver_email_id or not str(approver_email_id).strip()
+                    creator_missing = not creator_email or not str(creator_email).strip()
+                    if creator_missing:
+                        print(f"❌ Invalid Creator Email ID for Order No: {email_row[0]}")
+                        notify_missing_creator(MODULE_PURCHASE_ORDER, email_row[0])
+                    if approver_missing:
+                        print(f"❌ Invalid Approver Email ID for Order No: {email_row[0]}")
+                        notify_missing_approver(MODULE_PURCHASE_ORDER, email_row[0])
+                    if approver_missing or creator_missing:
+                        print(f"Skipping Purchase Order {email_row[0]}; database not updated.")
+                        continue
 
-                    if approver_email_id and approver_email_id.strip():
+                    if approver_email_id and str(approver_email_id).strip():
                         # Send email first; update DB only on successful send
                         email_sent = send_purchase_approval_email(header_data, items_list)
                         if email_sent:
@@ -445,14 +467,14 @@ def check_purchase_order_pending_emails():
                                 (current_time, email_row[0]),
                                 operation_name=f"Purchase approval-email status update for {email_row[0]}",
                             )
+                            clear_missing_approver(MODULE_PURCHASE_ORDER, email_row[0])
+                            clear_missing_creator(MODULE_PURCHASE_ORDER, email_row[0])
                             print(f"✅ Successfully processed Domestic order: {no_}")
                         else:
                             print(
                                 f"❌ Email sending failed for Order No: {email_row[0]}; "
                                 "database not updated."
                             )
-                    else:
-                        print(f"❌ Invalid Approver Email ID for Order No: {email_row[0]}")
                 
                 conn.commit()
                 print("Successfully processed all pending emails")
@@ -494,6 +516,7 @@ def check_purchase_order_pending_emails():
             )
         else:
             print(f"Database error: {e.original_error}")
+        report_checker_exception(MODULE_PURCHASE_ORDER, e)
         if conn:
             conn.rollback()
     except pyodbc.Error as e:
@@ -503,10 +526,12 @@ def check_purchase_order_pending_emails():
             )
         else:
             print(f"Database error: {str(e)}")
+        report_checker_exception(MODULE_PURCHASE_ORDER, e)
         if conn:
             conn.rollback()
     except Exception as e:
         print(f"Error checking pending emails while querying table {current_table}: {str(e)}")
+        report_checker_exception(MODULE_PURCHASE_ORDER, e)
         if conn:
             conn.rollback()
     finally:
@@ -618,6 +643,7 @@ def send_purchase_response_email_to_creator(request_id, response_status, reason=
 
         if not creator_email or not str(creator_email).strip():
             print(f"ERROR: Creator email not found for purchase document {request_id}")
+            notify_missing_creator(MODULE_PURCHASE_ORDER, request_id)
             return False
 
         smtp_server = os.getenv("SMTP_SERVER")
@@ -663,6 +689,8 @@ def send_purchase_response_email_to_creator(request_id, response_status, reason=
         except Exception as e:
             print(f"ERROR: Failed to send purchase response email for {request_id}: {e}")
             return False
+
+        clear_missing_creator(MODULE_PURCHASE_ORDER, request_id)
 
         try:
             # Email sent successfully, update the response flag.

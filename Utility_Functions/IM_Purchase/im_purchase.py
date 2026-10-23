@@ -12,6 +12,17 @@ import socket
 import uuid
 from Utility_Functions.config.secure import decrypt, encrypt, encrypt_approval_token
 from Utility_Functions.config.utility_functions import format_utc_timestamp_as_ist, get_utc_timestamp, run_with_retry, smtp_send_message
+from Utility_Functions.config.warning_alerts import (
+    MODULE_IM_PURCHASE,
+    clear_missing_accountants,
+    clear_missing_approver,
+    clear_missing_creator,
+    notify_missing_accountants,
+    notify_missing_approver,
+    notify_missing_creator,
+    report_checker_exception,
+    sweep_module_order_alerts,
+)
 
 def get_status_text(status_code):
     """Convert status code to text - now handles both numeric and text status"""
@@ -139,6 +150,8 @@ def check_IM_Purchase_pending_emails():
             if not conn:
                 print("Failed to connect to database")
                 return
+
+            sweep_module_order_alerts(MODULE_IM_PURCHASE)
 
             # Columns aligned with PURCHASE_REQ_TABLE (see tables.txt); avoid SELECT *
             query = f"""
@@ -321,7 +334,19 @@ def check_IM_Purchase_pending_emails():
                     current_time = get_utc_timestamp()
 
 
-                    if approver_email and approver_email.strip():
+                    approver_missing = not approver_email or not str(approver_email).strip()
+                    creator_missing = not creator_email or not str(creator_email).strip()
+                    if creator_missing:
+                        print(f"❌ Invalid Creator Email ID for Order No: {no_}")
+                        notify_missing_creator(MODULE_IM_PURCHASE, no_)
+                    if approver_missing:
+                        print(f"❌ Invalid Approver Email ID for Order No: {no_}")
+                        notify_missing_approver(MODULE_IM_PURCHASE, no_)
+                    if approver_missing or creator_missing:
+                        print(f"Skipping IM Purchase {no_}; database not updated.")
+                        continue
+
+                    if approver_email and str(approver_email).strip():
                         # Send email
                         try:
                             sent = send_approval_email(header_data, items_list)
@@ -338,15 +363,14 @@ def check_IM_Purchase_pending_emails():
                                     (current_time, no_),
                                     operation_name=f"IM HOD approval-email status update for {no_}",
                                 )
+                                clear_missing_approver(MODULE_IM_PURCHASE, no_)
+                                clear_missing_creator(MODULE_IM_PURCHASE, no_)
                                 print(f"✅ Successfully processed IM Purchase No_: {no_}")
                             else:
                                 print(f"❌ Email sending failed for IM Purchase No_: {no_}")
                         except Exception as e:
                             print(f"Error sending approval email for IM Purchase No_ {no_}: {str(e)}")
-                            # Email send failed, but status is already updated to prevent reprocessing
-
-                    else:
-                        print(f"❌ Invalid Approver Email ID for Order No: {no_}")
+                            report_checker_exception(MODULE_IM_PURCHASE, e)
 
                     print(f"✅ Successfully processed IM Requisition order: {no_}")
 
@@ -381,10 +405,12 @@ def check_IM_Purchase_pending_emails():
 
     except pyodbc.Error as e:
         print(f"Database error: {str(e)}")
+        report_checker_exception(MODULE_IM_PURCHASE, e)
         if conn:
             conn.rollback()
     except Exception as e:
         print(f"Error checking pending emails: {str(e)}")
+        report_checker_exception(MODULE_IM_PURCHASE, e)
         if conn:
             conn.rollback()
     finally:
@@ -405,6 +431,8 @@ def check_IM_Purchase_pending_emails_for_accountants():
             if not conn:
                 print("Failed to connect to database")
                 return
+
+            sweep_module_order_alerts(MODULE_IM_PURCHASE)
     
             # Columns aligned with PURCHASE_REQ_TABLE (see tables.txt); include accountant approver fields
             query = f"""
@@ -582,6 +610,17 @@ def check_IM_Purchase_pending_emails_for_accountants():
                     print(f"Processing data with No : {no_}")
                     current_time = get_utc_timestamp()
 
+                    accountant_addresses = [
+                        str(address).strip()
+                        for address in (accountant1_email, accountant2_email)
+                        if address and str(address).strip()
+                    ]
+                    if not accountant_addresses:
+                        print(f"❌ Both accountant emails are blank for IM Purchase No_: {no_}")
+                        notify_missing_accountants(MODULE_IM_PURCHASE, no_)
+                        print(f"Skipping IM Purchase {no_}; database not updated.")
+                        continue
+
                     # Send email to accountants then update status
                     try:
                         print(f"Line Items fetched: {items_list} for Document No_: {no_}")
@@ -618,11 +657,14 @@ def check_IM_Purchase_pending_emails_for_accountants():
                                 f"IM Purchase No_: {no_} email sent but row was not updated "
                                 "(status may have changed)."
                             )
+                        else:
+                            clear_missing_accountants(MODULE_IM_PURCHASE, no_)
 
                     except Exception as e:
                         print(
                             f"Error in accountant email/update for IM Purchase No_ {no_}: {str(e)}"
                         )
+                        report_checker_exception(MODULE_IM_PURCHASE, e)
                 
                 print("Successfully processed all pending emails for accountants")
             else:
@@ -630,8 +672,10 @@ def check_IM_Purchase_pending_emails_for_accountants():
             
     except pyodbc.Error as e:
         print(f"Database error: {str(e)}")
+        report_checker_exception(MODULE_IM_PURCHASE, e)
     except Exception as e:
         print(f"Error checking pending emails for accountants: {str(e)}")
+        report_checker_exception(MODULE_IM_PURCHASE, e)
 
 
 def get_purchase_request_by_id(request_id):
@@ -867,8 +911,9 @@ def send_response_email_to_creator(purchase_req, response_status, reason=None):
         print(f"[DEBUG] Preparing to send response email to creator for document: {purchase_req.get('No_', '')}")
         
         creator_email = purchase_req.get('Creator Mail ID')
-        if not creator_email:
+        if not creator_email or not str(creator_email).strip():
             print(f"ERROR: No creator email found for document {purchase_req.get('No_', '')}")
+            notify_missing_creator(MODULE_IM_PURCHASE, purchase_req.get('No_', ''))
             return False
         
         smtp_server = os.getenv("SMTP_SERVER")
@@ -915,6 +960,7 @@ def send_response_email_to_creator(purchase_req, response_status, reason=None):
         
         # Send email (with DNS/network retries)
         smtp_send_message(msg)
+        clear_missing_creator(MODULE_IM_PURCHASE, purchase_req.get('No_', ''))
         
         print(f"✅ Response email sent to creator {creator_email} for document {purchase_req.get('No_', '')}")
         return True
@@ -932,8 +978,9 @@ def send_accountant_response_email_to_creator(purchase_req, response_status, rea
         print(f"[DEBUG] Preparing to send accountant response email to creator for document: {purchase_req.get('No_', '')}")
         
         creator_email = purchase_req.get('Creator Mail ID')
-        if not creator_email:
+        if not creator_email or not str(creator_email).strip():
             print(f"ERROR: No creator email found for document {purchase_req.get('No_', '')}")
+            notify_missing_creator(MODULE_IM_PURCHASE, purchase_req.get('No_', ''))
             return False
         
         smtp_server = os.getenv("SMTP_SERVER")
@@ -981,6 +1028,7 @@ def send_accountant_response_email_to_creator(purchase_req, response_status, rea
         
         # Send email (with DNS/network retries)
         smtp_send_message(msg)
+        clear_missing_creator(MODULE_IM_PURCHASE, purchase_req.get('No_', ''))
         
         print(f" Accountant response email sent to creator {creator_email} for document {purchase_req.get('No_', '')}")
         return True
