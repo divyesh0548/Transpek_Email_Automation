@@ -42,8 +42,7 @@ def fetch_IM_Purchase_line_items(no_):
             [Unit Cost], 
             [Line Amount], 
             [Job No_],
-            [Item Inventory],
-            [Expected Receipt Date]
+            [Item Inventory]
         FROM {PURCHASE_REQ_LINE_TABLE}
         WHERE [Document No_] = ?
         ORDER BY [Line No_] ASC
@@ -71,7 +70,6 @@ def fetch_IM_Purchase_line_items(no_):
                     # amount = item_dict.get('Amount', 0)
                     # job_no = item_dict.get('Job No_', '')
                     # inventory = item_dict.get('Item Inventory', '')
-                    # receipt_date = item_dict.get('Expected Receipt Date', '')
             else:
                 print(f"No line items found for Document No_: {no_}")
             

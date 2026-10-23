@@ -82,15 +82,16 @@ def format_date_simple(date_str: str) -> str:
     """Format date as DD/MM/YYYY."""
     if not date_str:
         return ''
+    if isinstance(date_str, datetime):
+        return date_str.strftime('%d/%m/%Y')
     try:
-        # Handle datetime strings with time component
-        if ' ' in date_str:
-            dt = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
-        else:
-            dt = datetime.strptime(date_str, '%Y-%m-%d')
+        normalized_date = str(date_str).strip()
+        if normalized_date.endswith('Z'):
+            normalized_date = normalized_date[:-1] + '+00:00'
+        dt = datetime.fromisoformat(normalized_date)
         return dt.strftime('%d/%m/%Y')
-    except:
-        return date_str
+    except (TypeError, ValueError):
+        return str(date_str)
 
 def format_date_template(timestamp):
     # Check if the timestamp is already a datetime object
@@ -116,6 +117,7 @@ def prepare_template_data(header_data: Dict, line_data: List[Dict]) -> Dict:
 
     
     # Prepare line items with department name
+    delivery_date = format_date_simple(header_data.get('Due Date', ''))
     prepared_line_items = []
     for item in line_data:
         stock_value = float(item.get('Item Inventory', '0'))
@@ -131,7 +133,7 @@ def prepare_template_data(header_data: Dict, line_data: List[Dict]) -> Dict:
             'job_card_no': item.get('Job No_', ''),
             # 'stock_on_hand': item.get('Item Inventory', '0'),
             'stock_on_hand': formatted_stock,
-            'delivery_date': format_date_simple(item.get('Expected Receipt Date', ''))
+            'delivery_date': delivery_date
         }
         prepared_line_items.append(prepared_item)
     
