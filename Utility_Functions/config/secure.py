@@ -1,6 +1,7 @@
 from cryptography.fernet import Fernet, InvalidToken
 import base64
 import hashlib
+import json
 import logging
 import os
 
@@ -72,3 +73,30 @@ def decrypt(ciphertext: str) -> str:
     """Quick decryption using BASE_KEY"""
     manager = EncryptionManager(str(ORDER_SECRET_KEY))
     return manager.decrypt(ciphertext)
+
+
+def encrypt_approval_token(request_id: str, approver_email: str, action: str, workflow: str) -> str:
+    payload = {
+        "request_id": str(request_id),
+        "approver_email": str(approver_email).strip().lower(),
+        "action": str(action).strip().lower(),
+        "workflow": str(workflow).strip().lower(),
+    }
+    return encrypt(json.dumps(payload, separators=(",", ":")))
+
+
+def decrypt_approval_token(token: str) -> dict:
+    payload = json.loads(decrypt(str(token)))
+    required_fields = {"request_id", "approver_email", "action", "workflow"}
+    if not isinstance(payload, dict) or set(payload) != required_fields:
+        raise ValueError("Invalid approval token payload")
+
+    normalized_payload = {
+        "request_id": str(payload["request_id"]).strip(),
+        "approver_email": str(payload["approver_email"]).strip().lower(),
+        "action": str(payload["action"]).strip().lower(),
+        "workflow": str(payload["workflow"]).strip().lower(),
+    }
+    if not all(normalized_payload.values()):
+        raise ValueError("Approval token contains an empty value")
+    return normalized_payload

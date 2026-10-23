@@ -10,7 +10,7 @@ import os
 import json
 import socket
 import uuid
-from Utility_Functions.config.secure import encrypt, decrypt
+from Utility_Functions.config.secure import decrypt, encrypt, encrypt_approval_token
 from Utility_Functions.config.utility_functions import format_utc_timestamp_as_ist, get_utc_timestamp, run_with_retry, smtp_send_message
 
 def get_status_text(status_code):
@@ -780,73 +780,80 @@ def send_accountant_email(data, line_item_data, acc1_email, acc2_email):
             "template.pdf"
         )
 
-        msg = MIMEMultipart('alternative')
-        msg['From'] = smtp_user
-        
-        # Combine both accountant emails
         recipient_emails = []
-        if acc1_email:
-            recipient_emails.append(acc1_email)
-        if acc2_email:
-            recipient_emails.append(acc2_email)
+        for accountant_email in (acc1_email, acc2_email):
+            normalized_email = str(accountant_email or "").strip().lower()
+            if normalized_email and normalized_email not in recipient_emails:
+                recipient_emails.append(normalized_email)
         
         if not recipient_emails:
             print(f"[DEBUG] No accountant emails found for document {data.get('No_', '')}")
             return False
         
-        recipient_email = ', '.join(recipient_emails)
-        print(f"[DEBUG] Recipient emails for document {data.get('No_', '')}: {recipient_email}")
-        msg['To'] = recipient_email
+        print(f"[DEBUG] Recipient emails for document {data.get('No_', '')}: {', '.join(recipient_emails)}")
         subject_text = f"IM Purchase Requisition Approval Required - {data.get('No_', '')}"
-        msg['Subject'] = subject_text
         base_url = os.getenv('BASE_URL', 'http://localhost:5000')
         req_id = data.get('No_', '')
-        encrypted_req_id = encrypt(str(req_id))
-        body_html = f"""
-        <html>
-        <body style='font-family: Arial, sans-serif;'>
-        <p>Dear Accountant,</p>
-        <p>A new purchase requisition requires your review:</p>
-        <table border='1' style='border-collapse: collapse; margin: 20px 0;'>
-            <tr><td><strong>Document No:</strong></td><td>{data.get('No_', '')}</td></tr>
-            <tr><td><strong>Employee:</strong></td><td>{data.get('Employee Name', '')}</td></tr>
-            <tr><td><strong>Department:</strong></td><td>{data.get('Indenting Department', '')}</td></tr>
-            <tr><td><strong>Request Date:</strong></td><td>{data.get('Request Date', '')}</td></tr>
-            <tr><td><strong>Description:</strong></td><td>{data.get('Posting Description', '')}</td></tr>
-        </table>
-        <p>Please review the attached PDF and take action:</p>
-        <div style='margin: 30px 0;'>
-            <a href='{base_url}/email-accountant-approve/{encrypted_req_id}' 
-               style='background-color: #28a745; color: white; padding: 12px 24px; text-decoration: none; margin-right: 10px; border-radius: 4px;'>
-               ✓ APPROVE
-            </a>
-            <a href='{base_url}/email-accountant-reject/{encrypted_req_id}' 
-               style='background-color: #dc3545; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px;'>
-               ✗ REJECT
-            </a>
-        </div>
-        <p>Best regards,<br>
-        Transpek Industry Ltd.</p>
-        </body>
-        </html>
-        """
-        msg.attach(MIMEText(body_html, 'html'))
-        
-        from email.mime.application import MIMEApplication
-        pdf_attachment = MIMEApplication(pdf_buffer.getvalue(), _subtype='pdf')
-        pdf_attachment.add_header('Content-Disposition','attachment',filename=f'Purchase_Requisition_{req_id}.pdf')
-        msg.attach(pdf_attachment)
         import re
         
         # Validate all recipient emails
         for email_addr in recipient_emails:
-            if not email_addr or not isinstance(email_addr, str) or not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email_addr):
+            if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email_addr):
                 print(f"❌ Invalid accountant email for document {req_id}: '{email_addr}'")
-            else:
-                print(f"✅ Valid email: {email_addr}")
-        
-        print(f"[DEBUG] Attempting SMTP send for document {req_id}...")
-        smtp_send_message(msg)
+                return False
+
+        from email.mime.application import MIMEApplication
+
+        for recipient_email in recipient_emails:
+            approve_token = encrypt_approval_token(
+                req_id, recipient_email, "approve", "im_purchase"
+            )
+            reject_token = encrypt_approval_token(
+                req_id, recipient_email, "reject", "im_purchase"
+            )
+            msg = MIMEMultipart('alternative')
+            msg['From'] = smtp_user
+            msg['To'] = recipient_email
+            msg['Subject'] = subject_text
+            body_html = f"""
+            <html>
+            <body style='font-family: Arial, sans-serif;'>
+            <p>Dear Accountant,</p>
+            <p>A new purchase requisition requires your review:</p>
+            <table border='1' style='border-collapse: collapse; margin: 20px 0;'>
+                <tr><td><strong>Document No:</strong></td><td>{data.get('No_', '')}</td></tr>
+                <tr><td><strong>Employee:</strong></td><td>{data.get('Employee Name', '')}</td></tr>
+                <tr><td><strong>Department:</strong></td><td>{data.get('Indenting Department', '')}</td></tr>
+                <tr><td><strong>Request Date:</strong></td><td>{data.get('Request Date', '')}</td></tr>
+                <tr><td><strong>Description:</strong></td><td>{data.get('Posting Description', '')}</td></tr>
+            </table>
+            <p>Please review the attached PDF and take action:</p>
+            <div style='margin: 30px 0;'>
+                <a href='{base_url}/email-accountant-approve/{approve_token}'
+                   style='background-color: #28a745; color: white; padding: 12px 24px; text-decoration: none; margin-right: 10px; border-radius: 4px;'>
+                   ✓ APPROVE
+                </a>
+                <a href='{base_url}/email-accountant-reject/{reject_token}'
+                   style='background-color: #dc3545; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px;'>
+                   ✗ REJECT
+                </a>
+            </div>
+            <p>Best regards,<br>
+            Transpek Industry Ltd.</p>
+            </body>
+            </html>
+            """
+            msg.attach(MIMEText(body_html, 'html'))
+            pdf_attachment = MIMEApplication(pdf_buffer.getvalue(), _subtype='pdf')
+            pdf_attachment.add_header(
+                'Content-Disposition',
+                'attachment',
+                filename=f'Purchase_Requisition_{req_id}.pdf',
+            )
+            msg.attach(pdf_attachment)
+            print(f"[DEBUG] Attempting SMTP send for document {req_id} to {recipient_email}...")
+            smtp_send_message(msg)
+
         print(f"✅ Accountant email sent for document {data.get('No_', '')}")
         return True
     except Exception as e:

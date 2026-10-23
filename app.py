@@ -18,7 +18,7 @@ import pyodbc
 import hmac
 import atexit
 from apscheduler.schedulers.background import BackgroundScheduler
-from Utility_Functions.config.secure import encrypt, decrypt
+from Utility_Functions.config.secure import decrypt, decrypt_approval_token, encrypt
 from Utility_Functions.config.release_API import (
     trigger_oder_release,
     release_api_succeeded,
@@ -39,8 +39,6 @@ from Utility_Functions.config.approval_otp import (
     get_or_issue_pending_otp,
     clear_pending_otp,
     send_otp_email,
-    send_otp_emails_to_many,
-    accountant_otp_scope,
     )
 
 #Load secrets
@@ -153,6 +151,27 @@ def clear_otp_session():
 
 def _im_hod_approver_email(requisition: dict) -> str:
     return (requisition.get("Approver Mail ID") or requisition.get("approver_mailid") or "").strip()
+
+
+def _get_im_accountant_token_data(token: str, expected_action: str) -> dict:
+    token_data = decrypt_approval_token(token)
+    if token_data["workflow"] != "im_purchase":
+        raise ValueError("Approval link is not valid for IM Purchase")
+    if token_data["action"] != expected_action:
+        raise ValueError("Approval link action does not match the requested action")
+    return token_data
+
+
+def _validate_im_accountant_email(requisition: dict, approver_email: str) -> str:
+    configured_emails = {
+        str(requisition.get(column_name) or "").strip().lower()
+        for column_name in ("Account dept Approver 1", "Account dept Approver 2")
+        if str(requisition.get(column_name) or "").strip()
+    }
+    normalized_email = str(approver_email or "").strip().lower()
+    if normalized_email not in configured_emails:
+        raise ValueError("Approval link accountant is not configured for this requisition")
+    return normalized_email
 
 
 def _get_latest_approval_entry_approver(cursor, document_no):
@@ -876,7 +895,9 @@ def email_process_approval(request_id):
 def email_accountant_approve(request_id):
     """Show email approval page for accountants"""
     try:
-        originl_req_id = decrypt(str(request_id))
+        approval_token = str(request_id)
+        token_data = _get_im_accountant_token_data(approval_token, "approve")
+        originl_req_id = token_data["request_id"]
         requisition = get_purchase_request_by_id(originl_req_id)
         
         if not requisition:
@@ -905,26 +926,20 @@ def email_accountant_approve(request_id):
         # Check if Status is 2 with pending by accountants status - Show approval template
         elif Status == 2 or Status == "2":
             if Email_status and Email_status.lower() == "pending by accountants":
+                accountant_email = _validate_im_accountant_email(
+                    requisition, token_data["approver_email"]
+                )
                 if is_email_otp_required():
-                    acc1 = requisition.get("Account dept Approver 1") or ""
-                    acc2 = requisition.get("Account dept Approver 2") or ""
-                    scope = accountant_otp_scope(acc1, acc2)
-                    recipients = [e for e in (acc1, acc2) if e and str(e).strip()]
-                    if not scope or not recipients:
-                        return render_template_string("""
-                        <html><body style="font-family: Arial, sans-serif; text-align: center; margin-top: 50px;">
-                        <h2>❌ Configuration Error</h2>
-                        <p>No accountant approver email is configured for this requisition.</p>
-                        <script>setTimeout(function(){window.close();}, 5000);</script>
-                        </body></html>
-                        """)
                     otp, should_send_otp, ttl_rem = get_or_issue_pending_otp(
-                        CHANNEL_IM_ACCOUNTANT, "approve", originl_req_id, cache_identity=None
+                        CHANNEL_IM_ACCOUNTANT,
+                        "approve",
+                        originl_req_id,
+                        cache_identity=accountant_email,
                     )
-                    save_otp_in_session(scope, originl_req_id, otp, ttl_seconds=ttl_rem)
+                    save_otp_in_session(accountant_email, originl_req_id, otp, ttl_seconds=ttl_rem)
                     if should_send_otp:
-                        otp_res = send_otp_emails_to_many(
-                            recipients,
+                        otp_res = send_otp_email(
+                            accountant_email,
                             "IM Purchase (Accountant)",
                             "approve",
                             otp,
@@ -936,12 +951,13 @@ def email_accountant_approve(request_id):
                 return render_template(
                     "email_accountant_approve.html",
                     req_no=originl_req_id,
+                    approval_token=approval_token,
                     employee_name=requisition.get("Employee Name", ""),
                     department=requisition.get("Indenting Department", ""),
                     description=requisition.get("Posting Description", ""),
                     **(
                         {
-                            "otp_sent_to": ", ".join(recipients),
+                            "otp_sent_to": accountant_email,
                             "otp_expiry_seconds": ttl_rem,
                         }
                         if is_email_otp_required()
@@ -996,7 +1012,9 @@ def email_accountant_approve(request_id):
 def email_accountant_reject(request_id):
     """Show email rejection page for accountants"""
     try:
-        originl_req_id = decrypt(str(request_id))
+        approval_token = str(request_id)
+        token_data = _get_im_accountant_token_data(approval_token, "reject")
+        originl_req_id = token_data["request_id"]
         requisition = get_purchase_request_by_id(originl_req_id)
         
         if not requisition:
@@ -1025,26 +1043,20 @@ def email_accountant_reject(request_id):
         # Check if Status is 2 with pending by accountants status - Show rejection template
         elif Status == 2 or Status == "2":
             if Email_status and Email_status.lower() == "pending by accountants":
+                accountant_email = _validate_im_accountant_email(
+                    requisition, token_data["approver_email"]
+                )
                 if is_email_otp_required():
-                    acc1 = requisition.get("Account dept Approver 1") or ""
-                    acc2 = requisition.get("Account dept Approver 2") or ""
-                    scope = accountant_otp_scope(acc1, acc2)
-                    recipients = [e for e in (acc1, acc2) if e and str(e).strip()]
-                    if not scope or not recipients:
-                        return render_template_string("""
-                        <html><body style="font-family: Arial, sans-serif; text-align: center; margin-top: 50px;">
-                        <h2>❌ Configuration Error</h2>
-                        <p>No accountant approver email is configured for this requisition.</p>
-                        <script>setTimeout(function(){window.close();}, 5000);</script>
-                        </body></html>
-                        """)
                     otp, should_send_otp, ttl_rem = get_or_issue_pending_otp(
-                        CHANNEL_IM_ACCOUNTANT, "reject", originl_req_id, cache_identity=None
+                        CHANNEL_IM_ACCOUNTANT,
+                        "reject",
+                        originl_req_id,
+                        cache_identity=accountant_email,
                     )
-                    save_otp_in_session(scope, originl_req_id, otp, ttl_seconds=ttl_rem)
+                    save_otp_in_session(accountant_email, originl_req_id, otp, ttl_seconds=ttl_rem)
                     if should_send_otp:
-                        otp_res = send_otp_emails_to_many(
-                            recipients,
+                        otp_res = send_otp_email(
+                            accountant_email,
                             "IM Purchase (Accountant)",
                             "reject",
                             otp,
@@ -1056,12 +1068,13 @@ def email_accountant_reject(request_id):
                 return render_template(
                     "email_accountant_reject.html",
                     req_no=originl_req_id,
+                    approval_token=approval_token,
                     employee_name=requisition.get("Employee Name", ""),
                     department=requisition.get("Indenting Department", ""),
                     description=requisition.get("Posting Description", ""),
                     **(
                         {
-                            "otp_sent_to": ", ".join(recipients),
+                            "otp_sent_to": accountant_email,
                             "otp_expiry_seconds": ttl_rem,
                         }
                         if is_email_otp_required()
@@ -1115,6 +1128,7 @@ def email_accountant_reject(request_id):
 def email_process_accountant_approval(request_id):
     """Process accountant email approval/rejection"""
     try:
+        approval_token = str(request_id)
         action = request.form.get('action')
         reason = request.form.get('reason', '')
         form_details_str = request.form.get('formDetails', '{}')
@@ -1133,6 +1147,9 @@ def email_process_accountant_approval(request_id):
         
         if action == 'reject' and not reason.strip():
             raise ValueError('Rejection reason is required')
+
+        token_data = _get_im_accountant_token_data(approval_token, action)
+        request_id = token_data["request_id"]
         
         # Get client IP from request headers
         client_ip = request.headers.get('X-Forwarded-For', request.headers.get('X-Real-IP', request.remote_addr))
@@ -1148,18 +1165,19 @@ def email_process_accountant_approval(request_id):
         
         requisition = get_purchase_request_by_id(request_id)
         if not requisition:
-            print(f"Requisition not found for ID: {request_id}")
+            raise ValueError(f"Requisition not found for ID: {request_id}")
+
+        accountant_email = _validate_im_accountant_email(
+            requisition, token_data["approver_email"]
+        )
 
         if is_email_otp_required():
             entered_otp = request.form.get("otp", "").strip()
             if not entered_otp:
                 return jsonify({"success": False, "message": "OTP is required.", "error": "OTP is required."}), 400
-            acc1 = requisition.get("Account dept Approver 1") or ""
-            acc2 = requisition.get("Account dept Approver 2") or ""
-            scope = accountant_otp_scope(acc1, acc2)
-            if not scope:
-                return jsonify({"success": False, "message": "Accountant approver emails not configured.", "error": "Accountant approver emails not configured."}), 400
-            ok_otp, otp_msg, otp_reason = verify_otp_from_session(scope, request_id, entered_otp)
+            ok_otp, otp_msg, otp_reason = verify_otp_from_session(
+                accountant_email, request_id, entered_otp
+            )
             if not ok_otp:
                 err = {"success": False, "message": otp_msg, "error": otp_msg}
                 if otp_reason:
@@ -1249,7 +1267,12 @@ def email_process_accountant_approval(request_id):
             # Don't fail the whole request if email sending fails
         
         if is_email_otp_required():
-            clear_pending_otp(CHANNEL_IM_ACCOUNTANT, action, request_id, cache_identity=None)
+            clear_pending_otp(
+                CHANNEL_IM_ACCOUNTANT,
+                action,
+                request_id,
+                cache_identity=accountant_email,
+            )
         response_data = {"success": True, "req_id": request_id, "reason": reason, "client_details": client_details, "accountant_machine_details": accountant_machine_details}
 
         return jsonify(response_data)
