@@ -383,9 +383,9 @@ def start_scheduler():
         scheduler.add_job(
             func=background_email_checker,
             trigger="interval",
-            seconds=15,
+            seconds=120,
             id='check_emails_job',
-            name='Check pending emails every 30 seconds',
+            name='Check pending emails every 2 minutes',
             replace_existing=True,
             max_instances=1
         )

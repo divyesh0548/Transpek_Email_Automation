@@ -260,6 +260,184 @@ def fix_purchase_order_email_status():
         # Don't raise exception, just log and continue
 
 
+
+def _process_one_pending_purchase_email(conn, email_row):
+    no_ = email_row[0]
+    # Fetch related data from the main header table
+    cursor2 = conn.cursor()
+    query_main = f"""
+            SELECT {PURCHASE_HEADER_MAIN_SELECT}
+            FROM {PURCHASE_HEADER_MAIN}
+            WHERE [No_] = ?
+        """
+    current_table = PURCHASE_HEADER_MAIN
+    _purchase_debug_print(f"Querying table {current_table} for Purchase No_: {no_}")
+    cursor2.execute(query_main, (no_,))
+    main_colnames = [c[0] for c in cursor2.description]
+    main_row = cursor2.fetchone()
+    main_rd = dict(zip(main_colnames, main_row)) if main_row else {}
+
+    state_query = f"""
+        SELECT [State]
+        FROM {PURCHASE_HEADER_STATE}
+        WHERE [No_] = ?
+    """
+    current_table = PURCHASE_HEADER_STATE
+    _purchase_debug_print(f"Querying table {current_table} for Purchase No_: {no_}")
+    cursor2.execute(state_query, (no_,))
+    state_data = cursor2.fetchone()
+
+    print(f"   State Data: {state_data}")
+
+    gst_query = f"""
+        SELECT *
+        FROM {PURCHASE_HEADER_GST}
+        WHERE [No_] = ?
+    """
+    current_table = PURCHASE_HEADER_GST
+    _purchase_debug_print(f"Querying table {current_table} for Purchase No_: {no_}")
+    cursor2.execute(gst_query, (no_,))
+    gst_data = cursor2.fetchone()
+
+    payment_terms_query = f"""
+        SELECT [Description]
+        FROM {PAYMENT_TERMS_CODE_TABLE}
+        WHERE [Code] = ?    
+    """
+    current_table = PAYMENT_TERMS_CODE_TABLE
+    _purchase_debug_print(f"Querying table {current_table} for payment terms")
+    cursor2.execute(payment_terms_query, (main_rd.get("Payment Terms Code"),))
+    payment_terms_data = cursor2.fetchone()
+    payment_terms_description = payment_terms_data[0] if payment_terms_data else ""
+
+    shipment_method_query = f"""
+        SELECT [Description]
+        FROM {SHIPMENT_METHOD_TABLE}
+        WHERE [Code] = ?
+    """
+
+    current_table = SHIPMENT_METHOD_TABLE
+    _purchase_debug_print(f"Querying table {current_table} for shipment method")
+    cursor2.execute(shipment_method_query, (main_rd.get("Shipment Method Code"),))
+    shipment_method_data = cursor2.fetchone()
+    shipment_method = shipment_method_data[0] if shipment_method_data else ""
+
+
+    transaction_specification_query = f"""
+        SELECT [Text]
+        FROM {TRANSACTION_SPECIFICATION_TABLE}
+        WHERE [Code] = ?
+    """
+    current_table = TRANSACTION_SPECIFICATION_TABLE
+    _purchase_debug_print(f"Querying table {current_table} for transaction specification")
+    cursor2.execute(transaction_specification_query, (main_rd.get("Transaction Specification"),))
+    transaction_specification_data = cursor2.fetchone()
+    transaction_specification = transaction_specification_data[0] if transaction_specification_data else ""
+
+    purchase_comments_query = f"""
+        SELECT [Comment]
+        FROM {PURCHASE_COMMENTS_TABLE}
+        WHERE [No_] = ?
+        ORDER BY [Line No_] ASC
+    """
+    current_table = PURCHASE_COMMENTS_TABLE
+    _purchase_debug_print(f"Querying table {current_table} for Purchase No_: {no_}")
+    cursor2.execute(purchase_comments_query, (no_,))
+    purchase_comments = "\n".join(
+        str(comment_row[0]).strip()
+        for comment_row in cursor2.fetchall()
+        if comment_row[0] is not None and str(comment_row[0]).strip()
+    )
+    purchase_gst_details = fetch_purchase_gst_details(cursor2, no_)
+
+    state_info = get_state_info(state_data[0]) if state_data else {}
+    order_date = main_rd.get("Order Date")
+    buy_from_vendor_no = main_rd.get("Pay-to Vendor No_")
+    buy_from_vendor_name = main_rd.get("Buy-from Vendor Name")
+    buy_from_address = main_rd.get("Buy-from Address")
+    buy_from_city = main_rd.get("Buy-from Contact")
+    buy_from_post_code = main_rd.get("Buy-from Post Code")
+    state = state_info.get("state_name", "") if state_info else ""
+    vendor_gst_reg_no = gst_data[16] if gst_data else ""
+    payment_terms_code = main_rd.get("Payment Terms Code")
+    approver_email = email_row[1]
+    creator_email = email_row[2]
+    assigned_user_id = main_rd.get("Assigned User ID")
+    creator_name = (
+        _format_assigned_user_name(assigned_user_id)
+        or extract_name_from_email(creator_email)
+    )
+
+    header_data = {
+        'Document Type': 1,  # Default to 1
+        'No_': email_row[0],
+        'Order Date': order_date,
+        'Buy-from Vendor No_': buy_from_vendor_no,
+        'Buy-from Vendor Name': buy_from_vendor_name,
+        'Buy-from Address': buy_from_address,
+        'Buy-from City': buy_from_city,
+        'Buy-from Post Code': buy_from_post_code,
+        'State': state,
+        'Vendor GST Reg_ No_': vendor_gst_reg_no,
+        'Payment Terms Code': payment_terms_code,
+        'Payment Terms Description': payment_terms_description,
+        'Shipment Method': shipment_method,
+        'Transaction Specification': transaction_specification,
+        'Purchase Comments': purchase_comments,
+        **purchase_gst_details,
+        'Approver Mail ID': approver_email,
+        'Creator Mail ID': creator_email,
+        'Assigned User ID': assigned_user_id,
+        'Creator Name': creator_name,
+    }
+
+    items_list = fetch_purchase_line_items(email_row[0])
+
+    print(f"Header Data : {header_data}")
+    print(f"Line Items : {items_list}")
+    print(f"Processing data with No : {email_row[0]}")
+
+    current_time = get_utc_timestamp()
+
+    approver_email_id = email_row[1]
+    approver_missing = not approver_email_id or not str(approver_email_id).strip()
+    creator_missing = not creator_email or not str(creator_email).strip()
+    if creator_missing:
+        print(f"❌ Invalid Creator Email ID for Order No: {email_row[0]}")
+        notify_missing_creator(MODULE_PURCHASE_ORDER, email_row[0])
+    if approver_missing:
+        print(f"❌ Invalid Approver Email ID for Order No: {email_row[0]}")
+        notify_missing_approver(MODULE_PURCHASE_ORDER, email_row[0])
+    if approver_missing or creator_missing:
+        print(f"Skipping Purchase Order {email_row[0]}; database not updated.")
+        return
+
+    if approver_email_id and str(approver_email_id).strip():
+        # Send email first; update DB only on successful send
+        email_sent = send_purchase_approval_email(header_data, items_list)
+        if email_sent:
+            update_query = f"""
+             UPDATE {PURCHASE_EMAIL_TABLE}
+             SET [Email Send] = 1,
+                 [Emaill Status] = 'sent for approval',
+                 [Timestamps] = ?
+             WHERE [No_] = ?
+             """
+            execute_update_with_retry(
+                update_query,
+                (current_time, email_row[0]),
+                operation_name=f"Purchase approval-email status update for {email_row[0]}",
+            )
+            clear_missing_approver(MODULE_PURCHASE_ORDER, email_row[0])
+            clear_missing_creator(MODULE_PURCHASE_ORDER, email_row[0])
+            print(f"✅ Successfully processed Domestic order: {no_}")
+        else:
+            print(
+                f"❌ Email sending failed for Order No: {email_row[0]}; "
+                "database not updated."
+            )
+
+
 def check_purchase_order_pending_emails():
     conn = None
     cursor = None
@@ -301,181 +479,17 @@ def check_purchase_order_pending_emails():
                 for email_row in pending_emails:
                     no_ = email_row[0]  # Assuming column 0 is "No_"
                     print(f"Processing Purchase No_: {no_}")
-
-                    # Fetch related data from the main header table
-                    cursor2 = conn.cursor()
-                    query_main = f"""
-                            SELECT {PURCHASE_HEADER_MAIN_SELECT}
-                            FROM {PURCHASE_HEADER_MAIN}
-                            WHERE [No_] = ?
-                        """
-                    current_table = PURCHASE_HEADER_MAIN
-                    _purchase_debug_print(f"Querying table {current_table} for Purchase No_: {no_}")
-                    cursor2.execute(query_main, (no_,))
-                    main_colnames = [c[0] for c in cursor2.description]
-                    main_row = cursor2.fetchone()
-                    main_rd = dict(zip(main_colnames, main_row)) if main_row else {}
-                    
-                    state_query = f"""
-                        SELECT [State]
-                        FROM {PURCHASE_HEADER_STATE}
-                        WHERE [No_] = ?
-                    """
-                    current_table = PURCHASE_HEADER_STATE
-                    _purchase_debug_print(f"Querying table {current_table} for Purchase No_: {no_}")
-                    cursor2.execute(state_query, (no_,))
-                    state_data = cursor2.fetchone()
-
-                    print(f"   State Data: {state_data}")
-                    
-                    gst_query = f"""
-                        SELECT *
-                        FROM {PURCHASE_HEADER_GST}
-                        WHERE [No_] = ?
-                    """
-                    current_table = PURCHASE_HEADER_GST
-                    _purchase_debug_print(f"Querying table {current_table} for Purchase No_: {no_}")
-                    cursor2.execute(gst_query, (no_,))
-                    gst_data = cursor2.fetchone()
-
-                    payment_terms_query = f"""
-                        SELECT [Description]
-                        FROM {PAYMENT_TERMS_CODE_TABLE}
-                        WHERE [Code] = ?    
-                    """
-                    current_table = PAYMENT_TERMS_CODE_TABLE
-                    _purchase_debug_print(f"Querying table {current_table} for payment terms")
-                    cursor2.execute(payment_terms_query, (main_rd.get("Payment Terms Code"),))
-                    payment_terms_data = cursor2.fetchone()
-                    payment_terms_description = payment_terms_data[0] if payment_terms_data else ""
-
-                    shipment_method_query = f"""
-                        SELECT [Description]
-                        FROM {SHIPMENT_METHOD_TABLE}
-                        WHERE [Code] = ?
-                    """
-
-                    current_table = SHIPMENT_METHOD_TABLE
-                    _purchase_debug_print(f"Querying table {current_table} for shipment method")
-                    cursor2.execute(shipment_method_query, (main_rd.get("Shipment Method Code"),))
-                    shipment_method_data = cursor2.fetchone()
-                    shipment_method = shipment_method_data[0] if shipment_method_data else ""
-
-
-                    transaction_specification_query = f"""
-                        SELECT [Text]
-                        FROM {TRANSACTION_SPECIFICATION_TABLE}
-                        WHERE [Code] = ?
-                    """
-                    current_table = TRANSACTION_SPECIFICATION_TABLE
-                    _purchase_debug_print(f"Querying table {current_table} for transaction specification")
-                    cursor2.execute(transaction_specification_query, (main_rd.get("Transaction Specification"),))
-                    transaction_specification_data = cursor2.fetchone()
-                    transaction_specification = transaction_specification_data[0] if transaction_specification_data else ""
-
-                    purchase_comments_query = f"""
-                        SELECT [Comment]
-                        FROM {PURCHASE_COMMENTS_TABLE}
-                        WHERE [No_] = ?
-                        ORDER BY [Line No_] ASC
-                    """
-                    current_table = PURCHASE_COMMENTS_TABLE
-                    _purchase_debug_print(f"Querying table {current_table} for Purchase No_: {no_}")
-                    cursor2.execute(purchase_comments_query, (no_,))
-                    purchase_comments = "\n".join(
-                        str(comment_row[0]).strip()
-                        for comment_row in cursor2.fetchall()
-                        if comment_row[0] is not None and str(comment_row[0]).strip()
-                    )
-                    purchase_gst_details = fetch_purchase_gst_details(cursor2, no_)
-
-                    state_info = get_state_info(state_data[0]) if state_data else {}
-                    order_date = main_rd.get("Order Date")
-                    buy_from_vendor_no = main_rd.get("Pay-to Vendor No_")
-                    buy_from_vendor_name = main_rd.get("Buy-from Vendor Name")
-                    buy_from_address = main_rd.get("Buy-from Address")
-                    buy_from_city = main_rd.get("Buy-from Contact")
-                    buy_from_post_code = main_rd.get("Buy-from Post Code")
-                    state = state_info.get("state_name", "") if state_info else ""
-                    vendor_gst_reg_no = gst_data[16] if gst_data else ""
-                    payment_terms_code = main_rd.get("Payment Terms Code")
-                    approver_email = email_row[1]
-                    creator_email = email_row[2]
-                    assigned_user_id = main_rd.get("Assigned User ID")
-                    creator_name = (
-                        _format_assigned_user_name(assigned_user_id)
-                        or extract_name_from_email(creator_email)
-                    )
-
-                    header_data = {
-                        'Document Type': 1,  # Default to 1
-                        'No_': email_row[0],
-                        'Order Date': order_date,
-                        'Buy-from Vendor No_': buy_from_vendor_no,
-                        'Buy-from Vendor Name': buy_from_vendor_name,
-                        'Buy-from Address': buy_from_address,
-                        'Buy-from City': buy_from_city,
-                        'Buy-from Post Code': buy_from_post_code,
-                        'State': state,
-                        'Vendor GST Reg_ No_': vendor_gst_reg_no,
-                        'Payment Terms Code': payment_terms_code,
-                        'Payment Terms Description': payment_terms_description,
-                        'Shipment Method': shipment_method,
-                        'Transaction Specification': transaction_specification,
-                        'Purchase Comments': purchase_comments,
-                        **purchase_gst_details,
-                        'Approver Mail ID': approver_email,
-                        'Creator Mail ID': creator_email,
-                        'Assigned User ID': assigned_user_id,
-                        'Creator Name': creator_name,
-                    }
-
-                    items_list = fetch_purchase_line_items(email_row[0])
-
-                    print(f"Header Data : {header_data}")
-                    print(f"Line Items : {items_list}")
-                    print(f"Processing data with No : {email_row[0]}")
-
-                    current_time = get_utc_timestamp()
-
-                    approver_email_id = email_row[1]
-                    approver_missing = not approver_email_id or not str(approver_email_id).strip()
-                    creator_missing = not creator_email or not str(creator_email).strip()
-                    if creator_missing:
-                        print(f"❌ Invalid Creator Email ID for Order No: {email_row[0]}")
-                        notify_missing_creator(MODULE_PURCHASE_ORDER, email_row[0])
-                    if approver_missing:
-                        print(f"❌ Invalid Approver Email ID for Order No: {email_row[0]}")
-                        notify_missing_approver(MODULE_PURCHASE_ORDER, email_row[0])
-                    if approver_missing or creator_missing:
-                        print(f"Skipping Purchase Order {email_row[0]}; database not updated.")
+                    try:
+                        _process_one_pending_purchase_email(conn, email_row)
+                    except Exception as order_error:
+                        print(f"❌ Error processing Purchase No_ {no_}: {order_error}")
+                        print(f"Skipping Purchase No_ {no_} and continuing with the remaining orders.")
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            pass
                         continue
 
-                    if approver_email_id and str(approver_email_id).strip():
-                        # Send email first; update DB only on successful send
-                        email_sent = send_purchase_approval_email(header_data, items_list)
-                        if email_sent:
-                            update_query = f"""
-                             UPDATE {PURCHASE_EMAIL_TABLE}
-                             SET [Email Send] = 1,
-                                 [Emaill Status] = 'sent for approval',
-                                 [Timestamps] = ?
-                             WHERE [No_] = ?
-                             """
-                            execute_update_with_retry(
-                                update_query,
-                                (current_time, email_row[0]),
-                                operation_name=f"Purchase approval-email status update for {email_row[0]}",
-                            )
-                            clear_missing_approver(MODULE_PURCHASE_ORDER, email_row[0])
-                            clear_missing_creator(MODULE_PURCHASE_ORDER, email_row[0])
-                            print(f"✅ Successfully processed Domestic order: {no_}")
-                        else:
-                            print(
-                                f"❌ Email sending failed for Order No: {email_row[0]}; "
-                                "database not updated."
-                            )
-                
                 conn.commit()
                 print("Successfully processed all pending emails")
             else:
