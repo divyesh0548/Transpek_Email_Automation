@@ -127,10 +127,31 @@ def fetch_purchase_line_items(no_):
     return items_list
 
 
+def _gst_registration_state_code(gst_number, column_name, no_):
+    value = str(gst_number or "").strip()
+    state_code = value[:2]
+    if len(state_code) != 2 or not state_code.isdigit():
+        raise ValueError(
+            f"Invalid {column_name} for Document No_: {no_}"
+        )
+    return state_code
+
+
+def purchase_gst_jurisdiction_type(vendor_gst_no, location_gst_no, no_):
+    """Decide interstate (1, IGST) or intrastate (0, SGST/CGST) from GSTIN state codes."""
+    vendor_state = _gst_registration_state_code(
+        vendor_gst_no, "Vendor GST Reg_ No_", no_
+    )
+    location_state = _gst_registration_state_code(
+        location_gst_no, "Location GST Reg_ No_", no_
+    )
+    return 1 if vendor_state != location_state else 0
+
+
 def fetch_purchase_gst_details(cursor, no_):
     current_table = PURCHASE_HSN_GST_TABLE
     purchase_gst_query = f"""
-        SELECT [GST Group Code], [GST Jurisdiction Type]
+        SELECT [GST Group Code]
         FROM {PURCHASE_HSN_GST_TABLE}
         WHERE [Document No_] = ?
     """
@@ -150,34 +171,12 @@ def fetch_purchase_gst_details(cursor, no_):
             "GST Jurisdiction Type": None,
             "GST Rate": None,
         }
-    if "" in gst_group_codes:
+    if "" in gst_group_codes or len(gst_group_codes) != 1:
         raise ValueError(
             f"Purchase GST rows have inconsistent group codes for Document No_: {no_}"
         )
 
-    purchase_gst_values = set()
-    for row in purchase_gst_rows:
-        gst_group_code = str(row[0]).strip()
-        try:
-            jurisdiction_type = int(row[1])
-        except (TypeError, ValueError) as exc:
-            raise ValueError(
-                f"Invalid GST Jurisdiction Type for Document No_: {no_}"
-            ) from exc
-        if jurisdiction_type not in (0, 1):
-            raise ValueError(
-                f"Unsupported GST Jurisdiction Type {jurisdiction_type} "
-                f"for Document No_: {no_}"
-            )
-        purchase_gst_values.add((gst_group_code, jurisdiction_type))
-
-    if len(purchase_gst_values) != 1:
-        raise ValueError(
-            f"Purchase GST rows have inconsistent group codes or jurisdiction "
-            f"types for Document No_: {no_}"
-        )
-
-    gst_group_code, jurisdiction_type = purchase_gst_values.pop()
+    gst_group_code = gst_group_codes.pop()
     gst_description_query = f"""
         SELECT [Description]
         FROM {GST_CODE_TABLE}
@@ -202,7 +201,7 @@ def fetch_purchase_gst_details(cursor, no_):
 
     return {
         "GST Group Code": gst_group_code,
-        "GST Jurisdiction Type": jurisdiction_type,
+        "GST Jurisdiction Type": None,
         "GST Rate": float(percentage_match.group(1)),
     }
 
@@ -290,7 +289,7 @@ def _process_one_pending_purchase_email(conn, email_row):
     print(f"   State Data: {state_data}")
 
     gst_query = f"""
-        SELECT *
+        SELECT [Vendor GST Reg_ No_], [Location GST Reg_ No_]
         FROM {PURCHASE_HEADER_GST}
         WHERE [No_] = ?
     """
@@ -348,7 +347,13 @@ def _process_one_pending_purchase_email(conn, email_row):
         for comment_row in cursor2.fetchall()
         if comment_row[0] is not None and str(comment_row[0]).strip()
     )
+    vendor_gst_reg_no = str(gst_data[0]).strip() if gst_data and gst_data[0] else ""
+    location_gst_reg_no = str(gst_data[1]).strip() if gst_data and gst_data[1] else ""
     purchase_gst_details = fetch_purchase_gst_details(cursor2, no_)
+    if purchase_gst_details.get("GST Group Code"):
+        purchase_gst_details["GST Jurisdiction Type"] = purchase_gst_jurisdiction_type(
+            vendor_gst_reg_no, location_gst_reg_no, no_
+        )
 
     state_info = get_state_info(state_data[0]) if state_data else {}
     order_date = main_rd.get("Order Date")
@@ -358,7 +363,6 @@ def _process_one_pending_purchase_email(conn, email_row):
     buy_from_city = main_rd.get("Buy-from Contact")
     buy_from_post_code = main_rd.get("Buy-from Post Code")
     state = state_info.get("state_name", "") if state_info else ""
-    vendor_gst_reg_no = gst_data[16] if gst_data else ""
     payment_terms_code = main_rd.get("Payment Terms Code")
     approver_email = email_row[1]
     creator_email = email_row[2]
@@ -379,6 +383,7 @@ def _process_one_pending_purchase_email(conn, email_row):
         'Buy-from Post Code': buy_from_post_code,
         'State': state,
         'Vendor GST Reg_ No_': vendor_gst_reg_no,
+        'Location GST Reg_ No_': location_gst_reg_no,
         'Payment Terms Code': payment_terms_code,
         'Payment Terms Description': payment_terms_description,
         'Shipment Method': shipment_method,

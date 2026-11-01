@@ -34,7 +34,6 @@ def get_buyer_company_details():
         'buyer_company_pincode': '391440',
         'buyer_company_state': 'Gujarat', 
         'buyer_company_state_code': '24',
-        'buyer_company_gst_no': '24AAACT8639B1ZI',
         'buyer_company_country': 'IN'
     }
 
@@ -166,12 +165,12 @@ def prepare_Purchase_Order_Template_data(header_data: Dict, line_data: List[Dict
         'buyer_company_pincode': buyer_company['buyer_company_pincode'],
         'buyer_company_state': buyer_company['buyer_company_state'],
         'buyer_company_state_code': buyer_company['buyer_company_state_code'],
-        'buyer_company_gst_no': buyer_company['buyer_company_gst_no'],
+        'buyer_company_gst_no': header_data.get('Location GST Reg_ No_', ''),
         'buyer_company_country': buyer_company['buyer_company_country'],
         
         # Ship To Address (same as buyer company)
         'ship_to_address': f"{buyer_company['buyer_company_address']} {buyer_company['buyer_company_pincode']}",
-        'ship_to_gst': buyer_company['buyer_company_gst_no'],
+        'ship_to_gst': header_data.get('Location GST Reg_ No_', ''),
         
         # Fixed Signature Details
         'reviewed_by_name': header_data.get('Creator Name', ''),
