@@ -106,15 +106,23 @@ def _gst_registration_state_code(gst_number, column_name, no_):
     return state_code
 
 
-def sales_gst_jurisdiction_type(location_gst_no, customer_gst_no, no_):
+def sales_gst_jurisdiction_type(location_gst_no, customer_gst_no, ship_to_gst_no, no_):
     """Decide interstate (1, IGST) or intrastate (0, SGST/CGST) from GSTIN state codes."""
+    customer_gst = str(customer_gst_no or "").strip()
+    ship_to_gst = str(ship_to_gst_no or "").strip()
+    counterpart_gst = customer_gst or ship_to_gst
+    if not counterpart_gst:
+        return 0
+    counterpart_column = (
+        "Customer GST Reg_ No_" if customer_gst else "Ship-to GST Reg_ No_"
+    )
     location_state = _gst_registration_state_code(
         location_gst_no, "Location GST Reg_ No_", no_
     )
-    customer_state = _gst_registration_state_code(
-        customer_gst_no, "Customer GST Reg_ No_", no_
+    counterpart_state = _gst_registration_state_code(
+        counterpart_gst, counterpart_column, no_
     )
-    return 1 if location_state != customer_state else 0
+    return 1 if location_state != counterpart_state else 0
 
 
 def fetch_sales_order_gst_details(cursor, no_):
@@ -412,7 +420,7 @@ def check_sales_order_pending_emails():
                         header_data.update(fetch_sales_order_gst_details(cursor, no_))
                         if header_data.get("GST Group Code"):
                             header_data["GST Jurisdiction Type"] = sales_gst_jurisdiction_type(
-                                location_gst, customer_gst, no_
+                                location_gst, customer_gst, ship_to_gst, no_
                             )
 
                         # Get state info safely
