@@ -98,9 +98,28 @@ def fetch_sales_order_line_items(no_):
     return items_list
 
 
+def _gst_registration_state_code(gst_number, column_name, no_):
+    value = str(gst_number or "").strip()
+    state_code = value[:2]
+    if len(state_code) != 2 or not state_code.isdigit():
+        raise ValueError(f"Invalid {column_name} for Document No_: {no_}")
+    return state_code
+
+
+def sales_gst_jurisdiction_type(location_gst_no, customer_gst_no, no_):
+    """Decide interstate (1, IGST) or intrastate (0, SGST/CGST) from GSTIN state codes."""
+    location_state = _gst_registration_state_code(
+        location_gst_no, "Location GST Reg_ No_", no_
+    )
+    customer_state = _gst_registration_state_code(
+        customer_gst_no, "Customer GST Reg_ No_", no_
+    )
+    return 1 if location_state != customer_state else 0
+
+
 def fetch_sales_order_gst_details(cursor, no_):
     gst_query = f"""
-        SELECT [GST Group Code], [GST Jurisdiction Type]
+        SELECT [GST Group Code]
         FROM {SALES_HSN_GST_TABLE}
         WHERE [Document No_] = ?
     """
@@ -120,29 +139,10 @@ def fetch_sales_order_gst_details(cursor, no_):
             "GST Jurisdiction Type": None,
             "GST Rate": None,
         }
-    if "" in gst_group_codes:
+    if "" in gst_group_codes or len(gst_group_codes) != 1:
         raise ValueError(f"Sales GST rows have inconsistent group codes for Document No_: {no_}")
 
-    gst_values = set()
-    for row in gst_rows:
-        try:
-            jurisdiction_type = int(row[1])
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"Invalid GST Jurisdiction Type for Document No_: {no_}") from exc
-        if jurisdiction_type not in (0, 1):
-            raise ValueError(
-                f"Unsupported GST Jurisdiction Type {jurisdiction_type} "
-                f"for Document No_: {no_}"
-            )
-        gst_values.add((str(row[0]).strip(), jurisdiction_type))
-
-    if len(gst_values) != 1:
-        raise ValueError(
-            f"Sales GST rows have inconsistent group codes or jurisdiction "
-            f"types for Document No_: {no_}"
-        )
-
-    gst_group_code, jurisdiction_type = gst_values.pop()
+    gst_group_code = gst_group_codes.pop()
     description_query = f"""
         SELECT [Description]
         FROM {GST_CODE_TABLE}
@@ -162,7 +162,7 @@ def fetch_sales_order_gst_details(cursor, no_):
 
     return {
         "GST Group Code": gst_group_code,
-        "GST Jurisdiction Type": jurisdiction_type,
+        "GST Jurisdiction Type": None,
         "GST Rate": float(percentage_match.group(1)),
     }
 
@@ -410,6 +410,10 @@ def check_sales_order_pending_emails():
                             'creator_name': creator_name,
                         }
                         header_data.update(fetch_sales_order_gst_details(cursor, no_))
+                        if header_data.get("GST Group Code"):
+                            header_data["GST Jurisdiction Type"] = sales_gst_jurisdiction_type(
+                                location_gst, customer_gst, no_
+                            )
 
                         # Get state info safely
                         consignee_state_code = header_data.get('consignee_state_code', '')
