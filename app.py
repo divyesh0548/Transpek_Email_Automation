@@ -378,23 +378,42 @@ def _render_otp_send_failed():
     """)
 
 
+def _scheduler_interval_seconds(env_name, default):
+    raw = os.getenv(env_name, str(default)).strip()
+    try:
+        seconds = int(raw)
+    except ValueError:
+        print(f"Invalid {env_name}={raw!r}; using {default} seconds.")
+        return default
+    if seconds < 1:
+        print(f"Invalid {env_name}={seconds}; using {default} seconds.")
+        return default
+    return seconds
+
+
 def start_scheduler():
     if not scheduler.get_jobs():  # Check if the scheduler has jobs
+        pending_email_seconds = _scheduler_interval_seconds(
+            "PENDING_EMAIL_CHECK_INTERVAL_SECONDS", 45
+        )
+        status_fix_seconds = _scheduler_interval_seconds(
+            "EMAIL_STATUS_FIX_INTERVAL_SECONDS", 5
+        )
         scheduler.add_job(
             func=background_email_checker,
             trigger="interval",
-            seconds=120,
+            seconds=pending_email_seconds,
             id='check_emails_job',
-            name='Check pending emails every 2 minutes',
+            name=f'Check pending emails every {pending_email_seconds} seconds',
             replace_existing=True,
             max_instances=1
         )
         scheduler.add_job(
             func=backgroud_email_status_fix,
             trigger="interval",
-            seconds=5,
+            seconds=status_fix_seconds,
             id='backgroud_email_status_fix_job',
-            name='Background email status fix every 5 seconds',
+            name=f'Background email status fix every {status_fix_seconds} seconds',
             replace_existing=True
         )
         scheduler.start()
