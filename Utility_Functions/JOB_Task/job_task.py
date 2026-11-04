@@ -224,77 +224,76 @@ def check_job_task_pending_emails():
                 email_row = dict(zip(pending_cols, raw))
                 no_ = email_row.get("No_")
                 print(f"Processing JOB Task No_: {no_}")
+                try:
+                    query_main = f"""
+                        SELECT *
+                        FROM {JOB_CARD_SECONDARY_TABLE}
+                        WHERE [No_] = ?
+                    """
+                    cursor.execute(query_main, (no_,))
+                    job_secondary_data = cursor.fetchone()
 
-                query_main = f"""
-                    SELECT *
-                    FROM {JOB_CARD_SECONDARY_TABLE}
-                    WHERE [No_] = ?
-                """
-                cursor.execute(query_main, (no_,))
-                job_secondary_data = cursor.fetchone()
+                    if email_row.get("TPT_Job Type") == 1:
+                        job_card_category = "Capital WIP"
+                    else:
+                        job_card_category = " "   
 
-                if email_row.get("TPT_Job Type") == 1:
-                    job_card_category = "Capital WIP"
-                else:
-                    job_card_category = " "   
+                    if job_secondary_data:
+                        department = email_row.get("Department Name")
+                        job_card_number = email_row.get("No_")
+                        apo_type = email_row.get("AOP")
+                        plant_name = job_secondary_data[11]
+                        objective = email_row.get("OBJECTIVE OF JOB CARD")
+                        prepared_by = email_row.get("PREPARED BY")
+                        creator_email = email_row.get("Creator Mail ID")
+                        checked_by = email_row.get("CHECKED BY")
+                        approver_email = email_row.get("Approver Mail ID")
+                        job_type = job_card_category
+                        date_of_preparation = job_secondary_data[6]
+                        expected_benefits = email_row.get("EXPECTED BENEFITS")
+                        time_required = email_row.get("COMPLETION AFTER DATE OF PASS")
+                        job_description = job_secondary_data[3]
+                        category = job_secondary_data[31]
 
-                if job_secondary_data:
-                    department = email_row.get("Department Name")
-                    job_card_number = email_row.get("No_")
-                    apo_type = email_row.get("AOP")
-                    plant_name = job_secondary_data[11]
-                    objective = email_row.get("OBJECTIVE OF JOB CARD")
-                    prepared_by = email_row.get("PREPARED BY")
-                    creator_email = email_row.get("Creator Mail ID")
-                    checked_by = email_row.get("CHECKED BY")
-                    approver_email = email_row.get("Approver Mail ID")
-                    job_type = job_card_category
-                    date_of_preparation = job_secondary_data[6]
-                    expected_benefits = email_row.get("EXPECTED BENEFITS")
-                    time_required = email_row.get("COMPLETION AFTER DATE OF PASS")
-                    job_description = job_secondary_data[3]
-                    category = job_secondary_data[31]
+                        header_data = {
+                            'department': department,
+                            'job_card_number': job_card_number,
+                            'aop_type': apo_type,
+                            'plant_name': plant_name,
+                            'objective': objective,
+                            'prepared_by': prepared_by,
+                            'creator_email': creator_email,
+                            'checked_by': checked_by,
+                            'approver_name': '-',
+                            'approver_email': approver_email,
+                            'date_of_preparation': date_of_preparation,
+                            'expected_benefit': expected_benefits,
+                            'time_required': time_required,
+                            'job_description': job_description,
+                            'category': category,
+                            'job_card_category': job_type
+                        }
 
-                    header_data = {
-                        'department': department,
-                        'job_card_number': job_card_number,
-                        'aop_type': apo_type,
-                        'plant_name': plant_name,
-                        'objective': objective,
-                        'prepared_by': prepared_by,
-                        'creator_email': creator_email,
-                        'checked_by': checked_by,
-                        'approver_name': '-',
-                        'approver_email': approver_email,
-                        'date_of_preparation': date_of_preparation,
-                        'expected_benefit': expected_benefits,
-                        'time_required': time_required,
-                        'job_description': job_description,
-                        'category': category,
-                        'job_card_category': job_type
-                    }
+                        # Tasks_list = fetch_job_tasks(no_)
+                        Tasks_list = fetch_job_tasks_new(no_)
 
-                    # Tasks_list = fetch_job_tasks(no_)
-                    Tasks_list = fetch_job_tasks_new(no_)
+                        print(f"Header Data : {header_data}")
+                        print(f"Line Items : {Tasks_list}")
+                        print(f"Processing JOB data with No : {no_}")
+                        current_time = get_utc_timestamp()
 
-                    print(f"Header Data : {header_data}")
-                    print(f"Line Items : {Tasks_list}")
-                    print(f"Processing JOB data with No : {no_}")
-                    current_time = get_utc_timestamp()
+                        approver_missing = not approver_email or not str(approver_email).strip()
+                        creator_missing = not creator_email or not str(creator_email).strip()
+                        if creator_missing:
+                            print(f"❌ Invalid Creator Email ID for JOB Task No_: {no_}")
+                            notify_missing_creator(MODULE_JOB_CARD, no_)
+                        if approver_missing:
+                            print(f"❌ Invalid Approver Email ID for JOB Task No_: {no_}")
+                            notify_missing_approver(MODULE_JOB_CARD, no_)
+                        if approver_missing or creator_missing:
+                            print(f"Skipping Job Card {no_}; database not updated.")
+                            continue
 
-                    approver_missing = not approver_email or not str(approver_email).strip()
-                    creator_missing = not creator_email or not str(creator_email).strip()
-                    if creator_missing:
-                        print(f"❌ Invalid Creator Email ID for JOB Task No_: {no_}")
-                        notify_missing_creator(MODULE_JOB_CARD, no_)
-                    if approver_missing:
-                        print(f"❌ Invalid Approver Email ID for JOB Task No_: {no_}")
-                        notify_missing_approver(MODULE_JOB_CARD, no_)
-                    if approver_missing or creator_missing:
-                        print(f"Skipping Job Card {no_}; database not updated.")
-                        continue
-
-                    try:
                         email_sent = send_job_card_approval_email(header_data, Tasks_list)
                         if not email_sent:
                             print(f"Error sending approval email for JOB Task No_ {no_}; database not updated")
@@ -314,13 +313,18 @@ def check_job_task_pending_emails():
                         )
                         clear_missing_approver(MODULE_JOB_CARD, no_)
                         clear_missing_creator(MODULE_JOB_CARD, no_)
-
-                    except Exception as e:
-                        print(f"Error sending approval email for JOB Task No_ {no_}: {str(e)}")
-                        report_checker_exception(MODULE_JOB_CARD, e)
-                        conn.rollback()
-                else:
-                    print(f"No secondary data found for JOB Task No_ {no_}")
+                    else:
+                        print(f"No secondary data found for JOB Task No_ {no_}")
+                except Exception as order_error:
+                    print(f"❌ Error processing JOB Task No_ {no_}: {order_error}")
+                    print(f"Skipping JOB Task No_ {no_} and continuing with the remaining orders.")
+                    report_checker_exception(MODULE_JOB_CARD, order_error)
+                    try:
+                        if conn:
+                            conn.rollback()
+                    except Exception:
+                        pass
+                    continue
 
             print("Successfully processed all pending emails")
         else:

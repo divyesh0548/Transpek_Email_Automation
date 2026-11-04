@@ -1,1 +1,1 @@
-29/10/2026 = Fix the pending email processing function for all modules as fixed in PO. It must process all orders if one of them has an issue. Also fix the GST jusrisdiction logic as per PO.
+Develop a functionality for SO/PO to store the order numbers in txt file with release order API result so that they can be identified later on if something goes wrong.

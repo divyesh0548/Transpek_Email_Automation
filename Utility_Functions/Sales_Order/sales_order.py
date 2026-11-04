@@ -826,11 +826,16 @@ def check_sales_order_pending_emails():
                             print(f"✅ Successfully processed Export order: {no_}")
 
                 except Exception as order_error:
-                    print(f"❌ Error processing order {no_}: {str(order_error)}")
+                    print(f"❌ Error processing Sales Order No_ {no_}: {order_error}")
+                    print(f"Skipping Sales Order No_ {no_} and continuing with the remaining orders.")
                     import traceback
                     traceback.print_exc()
                     report_checker_exception(MODULE_SALES_ORDER, order_error)
-                    # Continue to next order instead of stopping
+                    try:
+                        if conn:
+                            conn.rollback()
+                    except Exception:
+                        pass
                     continue
 
             print(f"\n{'='*60}")

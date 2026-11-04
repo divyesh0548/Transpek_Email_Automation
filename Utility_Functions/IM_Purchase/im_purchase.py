@@ -208,7 +208,10 @@ def check_IM_Purchase_pending_emails():
                         OR [Email Send] IS NULL
                         OR [Email Send] = ''
                     )
-                    AND [Emaill Status] = 'approved by acc'
+                    AND (
+                        [Emaill Status] = 'approved by acc'
+                        OR [Approved By Account Dept_] = 1
+                    )
             """
 
             cursor.execute(query)
@@ -222,133 +225,132 @@ def check_IM_Purchase_pending_emails():
                     rd = dict(zip(column_names, email_row))
                     no_ = rd.get("No_")
                     print(f"Processing IM Purchase No_: {no_}")
+                    try:
+                        approver_mail_raw = rd.get("Approver Mail ID")
+                        creator_mail_raw = rd.get("Creator Mail ID")
+                        approver_mail_id = approver_mail_raw if approver_mail_raw else None
+                        creator_mail_id = creator_mail_raw if creator_mail_raw else None
+                        print(f"Fetched Approver Mail ID: {approver_mail_id}, Creator Mail ID: {creator_mail_id}")
 
-                    approver_mail_raw = rd.get("Approver Mail ID")
-                    creator_mail_raw = rd.get("Creator Mail ID")
-                    approver_mail_id = approver_mail_raw if approver_mail_raw else None
-                    creator_mail_id = creator_mail_raw if creator_mail_raw else None
-                    print(f"Fetched Approver Mail ID: {approver_mail_id}, Creator Mail ID: {creator_mail_id}")
+                        document_type = rd.get("Document Type")
+                        no = rd.get("No_")
+                        employee_no = rd.get("Employee No_")
+                        employee_name = rd.get("Employee Name")
+                        your_reference = rd.get("Your Reference")
+                        request_date = rd.get("Request Date")
+                        posting_date = rd.get("Posting Date")
+                        expected_receipt_date = rd.get("Expected Receipt Date")
+                        posting_description = rd.get("Posting Description")
+                        due_date = rd.get("Due Date")
+                        location_code = rd.get("Location Code")
+                        shortcut_dimension_1_code = rd.get("Shortcut Dimension 1 Code")
+                        shortcut_dimension_2_code = rd.get("Shortcut Dimension 2 Code")
+                        shortcut_dimension_2_value = rd.get("Shortcut Dimension 2 Value")
+                        comment = rd.get("Comment")
+                        posting_no = rd.get("Posting No_")
+                        last_posting_no = rd.get("Last Posting No_")
+                        reason_code = rd.get("Reason Code")
+                        gen_bus_posting_group = rd.get("Gen_ Bus_ Posting Group")
+                        document_date = rd.get("Document Date")
+                        no_series = rd.get("No_ Series")
+                        posting_no_series = rd.get("Posting No_ Series")
+                        dimension_set_id = rd.get("Dimension Set ID")
+                        responsibility_center = rd.get("Responsibility Center")
+                        assigned_user_id = rd.get("Assigned User ID")
+                        posted = rd.get("Posted")
+                        purchase_type = rd.get("Purchase Type")
+                        indenting_department = rd.get("Indenting Department")
+                        employee_department = rd.get("Employee Department")
+                        type_of_jobwork = rd.get("Type of Jobwork")
+                        capital_item_premises = rd.get("Capital Item Premises")
+                        shortcut_dimension_3_code = rd.get("Shortcut Dimension 3 Code")
+                        shortcut_dimension_6_code = rd.get("Shortcut Dimension 6 Code")
+                        indent_type = rd.get("Indent Type")
+                        approved_by = rd.get("Approved By")
+                        approved_date = rd.get("Approved Date")
+                        approved_time = rd.get("Approved Time")
+                        job_card_no = rd.get("Job Card No_")
+                        job_card_date = rd.get("Job Card Date")
+                        job_task_no = rd.get("Job Task No_")
+                        approved_by_account_dept = rd.get("Approved By Account Dept_")
+                        approver_email = approver_mail_id
+                        creator_email = creator_mail_id
 
-                    document_type = rd.get("Document Type")
-                    no = rd.get("No_")
-                    employee_no = rd.get("Employee No_")
-                    employee_name = rd.get("Employee Name")
-                    your_reference = rd.get("Your Reference")
-                    request_date = rd.get("Request Date")
-                    posting_date = rd.get("Posting Date")
-                    expected_receipt_date = rd.get("Expected Receipt Date")
-                    posting_description = rd.get("Posting Description")
-                    due_date = rd.get("Due Date")
-                    location_code = rd.get("Location Code")
-                    shortcut_dimension_1_code = rd.get("Shortcut Dimension 1 Code")
-                    shortcut_dimension_2_code = rd.get("Shortcut Dimension 2 Code")
-                    shortcut_dimension_2_value = rd.get("Shortcut Dimension 2 Value")
-                    comment = rd.get("Comment")
-                    posting_no = rd.get("Posting No_")
-                    last_posting_no = rd.get("Last Posting No_")
-                    reason_code = rd.get("Reason Code")
-                    gen_bus_posting_group = rd.get("Gen_ Bus_ Posting Group")
-                    document_date = rd.get("Document Date")
-                    no_series = rd.get("No_ Series")
-                    posting_no_series = rd.get("Posting No_ Series")
-                    dimension_set_id = rd.get("Dimension Set ID")
-                    responsibility_center = rd.get("Responsibility Center")
-                    assigned_user_id = rd.get("Assigned User ID")
-                    posted = rd.get("Posted")
-                    purchase_type = rd.get("Purchase Type")
-                    indenting_department = rd.get("Indenting Department")
-                    employee_department = rd.get("Employee Department")
-                    type_of_jobwork = rd.get("Type of Jobwork")
-                    capital_item_premises = rd.get("Capital Item Premises")
-                    shortcut_dimension_3_code = rd.get("Shortcut Dimension 3 Code")
-                    shortcut_dimension_6_code = rd.get("Shortcut Dimension 6 Code")
-                    indent_type = rd.get("Indent Type")
-                    approved_by = rd.get("Approved By")
-                    approved_date = rd.get("Approved Date")
-                    approved_time = rd.get("Approved Time")
-                    job_card_no = rd.get("Job Card No_")
-                    job_card_date = rd.get("Job Card Date")
-                    job_task_no = rd.get("Job Task No_")
-                    approved_by_account_dept = rd.get("Approved By Account Dept_")
-                    approver_email = approver_mail_id
-                    creator_email = creator_mail_id
+                        header_data = {
+                            "Document Type": document_type,
+                            "No_": no,
+                            "Employee No_": employee_no,
+                            "Employee Name": employee_name,
+                            "Your Reference": your_reference,
+                            "Request Date": request_date,
+                            "Posting Date": posting_date,
+                            "Expected Receipt Date": expected_receipt_date,
+                            "Posting Description": posting_description,
+                            "Due Date": due_date,
+                            "Location Code": location_code,
+                            "Shortcut Dimension 1 Code": shortcut_dimension_1_code,
+                            "Shortcut Dimension 2 Code": shortcut_dimension_2_code,
+                            "Shortcut Dimension 2 Value": shortcut_dimension_2_value,
+                            "Comment": comment,
+                            "Posting No_": posting_no,
+                            "Last Posting No_": last_posting_no,
+                            "Reason Code": reason_code,
+                            "Gen_ Bus_ Posting Group": gen_bus_posting_group,
+                            "Document Date": document_date,
+                            "No_ Series": no_series,
+                            "Posting No_ Series": posting_no_series,
+                            "Status": 2,  # Integer status - 2 for Pending
+                            "Dimension Set ID": dimension_set_id,
+                            "Responsibility Center": responsibility_center,
+                            "Assigned User ID": assigned_user_id,
+                            "Posted": posted,
+                            "Purchase Type": purchase_type,
+                            "Indenting Department": indenting_department,
+                            "Employee Department": employee_department,
+                            "Type of Jobwork": type_of_jobwork,
+                            "Capital Item Premises": capital_item_premises,
+                            "Shortcut Dimension 3 Code": shortcut_dimension_3_code,
+                            "Shortcut Dimension 6 Code": shortcut_dimension_6_code,
+                            "Indent Type": indent_type,
+                            "Approved By": approved_by,
+                            "Approved Date": approved_date,
+                            "Approved Time": approved_time,
+                            "Job Card No_": job_card_no,
+                            "Job Card Date": job_card_date,
+                            "Job Task No_": job_task_no,
+                            "Approved By Account Dept_": approved_by_account_dept,
+                            "$systemCreatedAt": str(datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])[:255],
+                            "$systemModifiedAt": str(datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])[:255],
+                            "Approver Mail ID": approver_email,
+                            "Creator Mail ID": creator_email,
+                            "Emaill Status": "Pending",
+                            "Reason": "",
+                            "Email Send": '0',
+                            "Response Mail Send": '0',
+                        }
 
-                    header_data = {
-                        "Document Type": document_type,
-                        "No_": no,
-                        "Employee No_": employee_no,
-                        "Employee Name": employee_name,
-                        "Your Reference": your_reference,
-                        "Request Date": request_date,
-                        "Posting Date": posting_date,
-                        "Expected Receipt Date": expected_receipt_date,
-                        "Posting Description": posting_description,
-                        "Due Date": due_date,
-                        "Location Code": location_code,
-                        "Shortcut Dimension 1 Code": shortcut_dimension_1_code,
-                        "Shortcut Dimension 2 Code": shortcut_dimension_2_code,
-                        "Shortcut Dimension 2 Value": shortcut_dimension_2_value,
-                        "Comment": comment,
-                        "Posting No_": posting_no,
-                        "Last Posting No_": last_posting_no,
-                        "Reason Code": reason_code,
-                        "Gen_ Bus_ Posting Group": gen_bus_posting_group,
-                        "Document Date": document_date,
-                        "No_ Series": no_series,
-                        "Posting No_ Series": posting_no_series,
-                        "Status": 2,  # Integer status - 2 for Pending
-                        "Dimension Set ID": dimension_set_id,
-                        "Responsibility Center": responsibility_center,
-                        "Assigned User ID": assigned_user_id,
-                        "Posted": posted,
-                        "Purchase Type": purchase_type,
-                        "Indenting Department": indenting_department,
-                        "Employee Department": employee_department,
-                        "Type of Jobwork": type_of_jobwork,
-                        "Capital Item Premises": capital_item_premises,
-                        "Shortcut Dimension 3 Code": shortcut_dimension_3_code,
-                        "Shortcut Dimension 6 Code": shortcut_dimension_6_code,
-                        "Indent Type": indent_type,
-                        "Approved By": approved_by,
-                        "Approved Date": approved_date,
-                        "Approved Time": approved_time,
-                        "Job Card No_": job_card_no,
-                        "Job Card Date": job_card_date,
-                        "Job Task No_": job_task_no,
-                        "Approved By Account Dept_": approved_by_account_dept,
-                        "$systemCreatedAt": str(datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])[:255],
-                        "$systemModifiedAt": str(datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])[:255],
-                        "Approver Mail ID": approver_email,
-                        "Creator Mail ID": creator_email,
-                        "Emaill Status": "Pending",
-                        "Reason": "",
-                        "Email Send": '0',
-                        "Response Mail Send": '0',
-                    }
+                        items_list = fetch_IM_Purchase_line_items(no)
 
-                    items_list = fetch_IM_Purchase_line_items(no)
-
-                    print(f"Header Data : {header_data}")
-                    print(f"Line Items : {items_list}")
-                    print(f"Processing data with No : {no_}")
-                    current_time = get_utc_timestamp()
+                        print(f"Header Data : {header_data}")
+                        print(f"Line Items : {items_list}")
+                        print(f"Processing data with No : {no_}")
+                        current_time = get_utc_timestamp()
 
 
-                    approver_missing = not approver_email or not str(approver_email).strip()
-                    creator_missing = not creator_email or not str(creator_email).strip()
-                    if creator_missing:
-                        print(f"❌ Invalid Creator Email ID for Order No: {no_}")
-                        notify_missing_creator(MODULE_IM_PURCHASE, no_)
-                    if approver_missing:
-                        print(f"❌ Invalid Approver Email ID for Order No: {no_}")
-                        notify_missing_approver(MODULE_IM_PURCHASE, no_)
-                    if approver_missing or creator_missing:
-                        print(f"Skipping IM Purchase {no_}; database not updated.")
-                        continue
+                        approver_missing = not approver_email or not str(approver_email).strip()
+                        creator_missing = not creator_email or not str(creator_email).strip()
+                        if creator_missing:
+                            print(f"❌ Invalid Creator Email ID for Order No: {no_}")
+                            notify_missing_creator(MODULE_IM_PURCHASE, no_)
+                        if approver_missing:
+                            print(f"❌ Invalid Approver Email ID for Order No: {no_}")
+                            notify_missing_approver(MODULE_IM_PURCHASE, no_)
+                        if approver_missing or creator_missing:
+                            print(f"Skipping IM Purchase {no_}; database not updated.")
+                            continue
 
-                    if approver_email and str(approver_email).strip():
-                        # Send email
-                        try:
+                        if approver_email and str(approver_email).strip():
+                            # Send email
                             sent = send_approval_email(header_data, items_list)
                             if sent:
                                 update_query = f"""
@@ -368,11 +370,18 @@ def check_IM_Purchase_pending_emails():
                                 print(f"✅ Successfully processed IM Purchase No_: {no_}")
                             else:
                                 print(f"❌ Email sending failed for IM Purchase No_: {no_}")
-                        except Exception as e:
-                            print(f"Error sending approval email for IM Purchase No_ {no_}: {str(e)}")
-                            report_checker_exception(MODULE_IM_PURCHASE, e)
 
-                    print(f"✅ Successfully processed IM Requisition order: {no_}")
+                        print(f"✅ Successfully processed IM Requisition order: {no_}")
+                    except Exception as order_error:
+                        print(f"❌ Error processing IM Purchase No_ {no_}: {order_error}")
+                        print(f"Skipping IM Purchase No_ {no_} and continuing with the remaining orders.")
+                        report_checker_exception(MODULE_IM_PURCHASE, order_error)
+                        try:
+                            if conn:
+                                conn.rollback()
+                        except Exception:
+                            pass
+                        continue
 
                 print("Successfully processed all pending emails")
             else:
@@ -503,126 +512,125 @@ def check_IM_Purchase_pending_emails_for_accountants():
                     rd = dict(zip(column_names, email_row))
                     no_ = rd.get("No_")
                     print(f"Processing IM Purchase No_: {no_} for accountants")
-
-                    acc1_raw = rd.get("Account dept Approver 1")
-                    acc2_raw = rd.get("Account dept Approver 2")
-                    acc1_id = acc1_raw if acc1_raw else None
-                    acc2_id = acc2_raw if acc2_raw else None
-                    print(f"Fetched Accountant 1 Mail ID: {acc1_id}, Accountant 2 Mail ID: {acc2_id}")
-
-                    document_type = rd.get("Document Type")
-                    no = rd.get("No_")
-                    employee_no = rd.get("Employee No_")
-                    employee_name = rd.get("Employee Name")
-                    your_reference = rd.get("Your Reference")
-                    request_date = rd.get("Request Date")
-                    posting_date = rd.get("Posting Date")
-                    expected_receipt_date = rd.get("Expected Receipt Date")
-                    posting_description = rd.get("Posting Description")
-                    due_date = rd.get("Due Date")
-                    location_code = rd.get("Location Code")
-                    shortcut_dimension_1_code = rd.get("Shortcut Dimension 1 Code")
-                    shortcut_dimension_2_code = rd.get("Shortcut Dimension 2 Code")
-                    shortcut_dimension_2_value = rd.get("Shortcut Dimension 2 Value")
-                    comment = rd.get("Comment")
-                    posting_no = rd.get("Posting No_")
-                    last_posting_no = rd.get("Last Posting No_")
-                    reason_code = rd.get("Reason Code")
-                    gen_bus_posting_group = rd.get("Gen_ Bus_ Posting Group")
-                    document_date = rd.get("Document Date")
-                    no_series = rd.get("No_ Series")
-                    posting_no_series = rd.get("Posting No_ Series")
-                    dimension_set_id = rd.get("Dimension Set ID")
-                    responsibility_center = rd.get("Responsibility Center")
-                    assigned_user_id = rd.get("Assigned User ID")
-                    posted = rd.get("Posted")
-                    purchase_type = rd.get("Purchase Type")
-                    indenting_department = rd.get("Indenting Department")
-                    employee_department = rd.get("Employee Department")
-                    type_of_jobwork = rd.get("Type of Jobwork")
-                    capital_item_premises = rd.get("Capital Item Premises")
-                    shortcut_dimension_3_code = rd.get("Shortcut Dimension 3 Code")
-                    shortcut_dimension_6_code = rd.get("Shortcut Dimension 6 Code")
-                    indent_type = rd.get("Indent Type")
-                    approved_by = rd.get("Approved By")
-                    approved_date = rd.get("Approved Date")
-                    approved_time = rd.get("Approved Time")
-                    job_card_no = rd.get("Job Card No_")
-                    job_card_date = rd.get("Job Card Date")
-                    job_task_no = rd.get("Job Task No_")
-                    approved_by_account_dept = rd.get("Approved By Account Dept_")
-                    accountant1_email = acc1_id
-                    accountant2_email = acc2_id
-
-                    header_data = {
-                        "Document Type": document_type,
-                        "No_": no,
-                        "Employee No_": employee_no,
-                        "Employee Name": employee_name,
-                        "Your Reference": your_reference,
-                        "Request Date": request_date,
-                        "Posting Date": posting_date,
-                        "Expected Receipt Date": expected_receipt_date,
-                        "Posting Description": posting_description,
-                        "Due Date": due_date,
-                        "Location Code": location_code,
-                        "Shortcut Dimension 1 Code": shortcut_dimension_1_code,
-                        "Shortcut Dimension 2 Code": shortcut_dimension_2_code,
-                        "Shortcut Dimension 2 Value": shortcut_dimension_2_value,
-                        "Comment": comment,
-                        "Posting No_": posting_no,
-                        "Last Posting No_": last_posting_no,
-                        "Reason Code": reason_code,
-                        "Gen_ Bus_ Posting Group": gen_bus_posting_group,
-                        "Document Date": document_date,
-                        "No_ Series": no_series,
-                        "Posting No_ Series": posting_no_series,
-                        "Status": 2,
-                        "Dimension Set ID": dimension_set_id,
-                        "Responsibility Center": responsibility_center,
-                        "Assigned User ID": assigned_user_id,
-                        "Posted": posted,
-                        "Purchase Type": purchase_type,
-                        "Indenting Department": indenting_department,
-                        "Employee Department": employee_department,
-                        "Type of Jobwork": type_of_jobwork,
-                        "Capital Item Premises": capital_item_premises,
-                        "Shortcut Dimension 3 Code": shortcut_dimension_3_code,
-                        "Shortcut Dimension 6 Code": shortcut_dimension_6_code,
-                        "Indent Type": indent_type,
-                        "Approved By": approved_by,
-                        "Approved Date": approved_date,
-                        "Approved Time": approved_time,
-                        "Job Card No_": job_card_no,
-                        "Job Card Date": job_card_date,
-                        "Job Task No_": job_task_no,
-                        "Approved By Account Dept_": approved_by_account_dept,
-                        "$systemCreatedAt": str(datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])[:255],
-                        "$systemModifiedAt": str(datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])[:255],
-                        "acc1_id": accountant1_email,
-                        "acc2_id": accountant2_email,
-                    }
-
-                    items_list = fetch_IM_Purchase_line_items(no)
-
-                    print(f"Header Data : {header_data}")
-                    print(f"Line Items : {items_list}")
-                    print(f"Processing data with No : {no_}")
-                    current_time = get_utc_timestamp()
-
-                    accountant_addresses = [
-                        str(address).strip()
-                        for address in (accountant1_email, accountant2_email)
-                        if address and str(address).strip()
-                    ]
-                    if not accountant_addresses:
-                        print(f"❌ Both accountant emails are blank for IM Purchase No_: {no_}")
-                        notify_missing_accountants(MODULE_IM_PURCHASE, no_)
-                        print(f"Skipping IM Purchase {no_}; database not updated.")
-                        continue
-
-                    # Send email to accountants then update status
                     try:
+                        acc1_raw = rd.get("Account dept Approver 1")
+                        acc2_raw = rd.get("Account dept Approver 2")
+                        acc1_id = acc1_raw if acc1_raw else None
+                        acc2_id = acc2_raw if acc2_raw else None
+                        print(f"Fetched Accountant 1 Mail ID: {acc1_id}, Accountant 2 Mail ID: {acc2_id}")
+
+                        document_type = rd.get("Document Type")
+                        no = rd.get("No_")
+                        employee_no = rd.get("Employee No_")
+                        employee_name = rd.get("Employee Name")
+                        your_reference = rd.get("Your Reference")
+                        request_date = rd.get("Request Date")
+                        posting_date = rd.get("Posting Date")
+                        expected_receipt_date = rd.get("Expected Receipt Date")
+                        posting_description = rd.get("Posting Description")
+                        due_date = rd.get("Due Date")
+                        location_code = rd.get("Location Code")
+                        shortcut_dimension_1_code = rd.get("Shortcut Dimension 1 Code")
+                        shortcut_dimension_2_code = rd.get("Shortcut Dimension 2 Code")
+                        shortcut_dimension_2_value = rd.get("Shortcut Dimension 2 Value")
+                        comment = rd.get("Comment")
+                        posting_no = rd.get("Posting No_")
+                        last_posting_no = rd.get("Last Posting No_")
+                        reason_code = rd.get("Reason Code")
+                        gen_bus_posting_group = rd.get("Gen_ Bus_ Posting Group")
+                        document_date = rd.get("Document Date")
+                        no_series = rd.get("No_ Series")
+                        posting_no_series = rd.get("Posting No_ Series")
+                        dimension_set_id = rd.get("Dimension Set ID")
+                        responsibility_center = rd.get("Responsibility Center")
+                        assigned_user_id = rd.get("Assigned User ID")
+                        posted = rd.get("Posted")
+                        purchase_type = rd.get("Purchase Type")
+                        indenting_department = rd.get("Indenting Department")
+                        employee_department = rd.get("Employee Department")
+                        type_of_jobwork = rd.get("Type of Jobwork")
+                        capital_item_premises = rd.get("Capital Item Premises")
+                        shortcut_dimension_3_code = rd.get("Shortcut Dimension 3 Code")
+                        shortcut_dimension_6_code = rd.get("Shortcut Dimension 6 Code")
+                        indent_type = rd.get("Indent Type")
+                        approved_by = rd.get("Approved By")
+                        approved_date = rd.get("Approved Date")
+                        approved_time = rd.get("Approved Time")
+                        job_card_no = rd.get("Job Card No_")
+                        job_card_date = rd.get("Job Card Date")
+                        job_task_no = rd.get("Job Task No_")
+                        approved_by_account_dept = rd.get("Approved By Account Dept_")
+                        accountant1_email = acc1_id
+                        accountant2_email = acc2_id
+
+                        header_data = {
+                            "Document Type": document_type,
+                            "No_": no,
+                            "Employee No_": employee_no,
+                            "Employee Name": employee_name,
+                            "Your Reference": your_reference,
+                            "Request Date": request_date,
+                            "Posting Date": posting_date,
+                            "Expected Receipt Date": expected_receipt_date,
+                            "Posting Description": posting_description,
+                            "Due Date": due_date,
+                            "Location Code": location_code,
+                            "Shortcut Dimension 1 Code": shortcut_dimension_1_code,
+                            "Shortcut Dimension 2 Code": shortcut_dimension_2_code,
+                            "Shortcut Dimension 2 Value": shortcut_dimension_2_value,
+                            "Comment": comment,
+                            "Posting No_": posting_no,
+                            "Last Posting No_": last_posting_no,
+                            "Reason Code": reason_code,
+                            "Gen_ Bus_ Posting Group": gen_bus_posting_group,
+                            "Document Date": document_date,
+                            "No_ Series": no_series,
+                            "Posting No_ Series": posting_no_series,
+                            "Status": 2,
+                            "Dimension Set ID": dimension_set_id,
+                            "Responsibility Center": responsibility_center,
+                            "Assigned User ID": assigned_user_id,
+                            "Posted": posted,
+                            "Purchase Type": purchase_type,
+                            "Indenting Department": indenting_department,
+                            "Employee Department": employee_department,
+                            "Type of Jobwork": type_of_jobwork,
+                            "Capital Item Premises": capital_item_premises,
+                            "Shortcut Dimension 3 Code": shortcut_dimension_3_code,
+                            "Shortcut Dimension 6 Code": shortcut_dimension_6_code,
+                            "Indent Type": indent_type,
+                            "Approved By": approved_by,
+                            "Approved Date": approved_date,
+                            "Approved Time": approved_time,
+                            "Job Card No_": job_card_no,
+                            "Job Card Date": job_card_date,
+                            "Job Task No_": job_task_no,
+                            "Approved By Account Dept_": approved_by_account_dept,
+                            "$systemCreatedAt": str(datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])[:255],
+                            "$systemModifiedAt": str(datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3])[:255],
+                            "acc1_id": accountant1_email,
+                            "acc2_id": accountant2_email,
+                        }
+
+                        items_list = fetch_IM_Purchase_line_items(no)
+
+                        print(f"Header Data : {header_data}")
+                        print(f"Line Items : {items_list}")
+                        print(f"Processing data with No : {no_}")
+                        current_time = get_utc_timestamp()
+
+                        accountant_addresses = [
+                            str(address).strip()
+                            for address in (accountant1_email, accountant2_email)
+                            if address and str(address).strip()
+                        ]
+                        if not accountant_addresses:
+                            print(f"❌ Both accountant emails are blank for IM Purchase No_: {no_}")
+                            notify_missing_accountants(MODULE_IM_PURCHASE, no_)
+                            print(f"Skipping IM Purchase {no_}; database not updated.")
+                            continue
+
+                        # Send email to accountants then update status
                         print(f"Line Items fetched: {items_list} for Document No_: {no_}")
                         sent = send_accountant_email(
                             header_data, items_list, accountant1_email, accountant2_email
@@ -659,12 +667,16 @@ def check_IM_Purchase_pending_emails_for_accountants():
                             )
                         else:
                             clear_missing_accountants(MODULE_IM_PURCHASE, no_)
-
-                    except Exception as e:
-                        print(
-                            f"Error in accountant email/update for IM Purchase No_ {no_}: {str(e)}"
-                        )
-                        report_checker_exception(MODULE_IM_PURCHASE, e)
+                    except Exception as order_error:
+                        print(f"❌ Error processing IM Purchase No_ {no_} for accountants: {order_error}")
+                        print(f"Skipping IM Purchase No_ {no_} and continuing with the remaining orders.")
+                        report_checker_exception(MODULE_IM_PURCHASE, order_error)
+                        try:
+                            if conn:
+                                conn.rollback()
+                        except Exception:
+                            pass
+                        continue
                 
                 print("Successfully processed all pending emails for accountants")
             else:

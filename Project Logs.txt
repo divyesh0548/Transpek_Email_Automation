@@ -1,0 +1,5 @@
+03/11
+Asked Birju sir to check the GRN process of a PO in backup before moving to live deployment.
+Create a general order is possible.
+
+Call him after 2 hours he said he is busy and first Indent should be created. Because that is the full flow, and that way GRN can be tested. 
