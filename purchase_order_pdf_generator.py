@@ -128,7 +128,20 @@ def prepare_Purchase_Order_Template_data(header_data: Dict, line_data: List[Dict
     
     # Prepare line items with proper formatting
     prepared_line_items = []
+    specification_numbers = []
+    version_names = []
     for index, item in enumerate(line_data, 1):
+        specifications = item.get('Specifications') or []
+        specification_numbers.extend(
+            spec['Description']
+            for spec in specifications
+            if spec.get('Description')
+        )
+        version_names.extend(
+            spec['Text Value']
+            for spec in specifications
+            if spec.get('Text Value')
+        )
         prepared_item = {
             'sr_no': index,
             'description': item.get('Description', ''),
@@ -136,7 +149,8 @@ def prepare_Purchase_Order_Template_data(header_data: Dict, line_data: List[Dict
             'quantity': format_number(item.get('Quantity', 0)),
             'unit_of_measure': item.get('Unit of Measure', 'NOS'),
             'direct_unit_cost': format_currency(item.get('Direct Unit Cost', 0)),
-            'amount': format_currency(item.get('Amount', 0))
+            'amount': format_currency(item.get('Amount', 0)),
+            'specifications': specifications,
         }
         prepared_line_items.append(prepared_item)
     
@@ -206,8 +220,8 @@ def prepare_Purchase_Order_Template_data(header_data: Dict, line_data: List[Dict
         'copy_type': 'SUPPLIER COPY',  # Can be made dynamic if needed
         
         # Terms and conditions fields (can be made dynamic if needed)
-        'specification_no': '',  # Usually empty as per PDF
-        'version_name': '',  # Usually empty as per PDF
+        'specification_no': ' | '.join(specification_numbers),
+        'version_name': ' | '.join(version_names),
         'version_date': '',  # Usually empty as per PDF
         
         # Current date for generation

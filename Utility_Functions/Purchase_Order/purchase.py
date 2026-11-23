@@ -1,4 +1,4 @@
-from Utility_Functions.config.constants import PURCHASE_LINE_TABLE, PURCHASE_HSN_GST_TABLE, PURCHASE_COMMENTS_TABLE, GST_CODE_TABLE, PURCHASE_EMAIL_TABLE, PURCHASE_HEADER_MAIN, PURCHASE_HEADER_STATE, PURCHASE_HEADER_GST, APPROVAL_ENTRY_TABLE, PAYMENT_TERMS_CODE_TABLE, SHIPMENT_METHOD_TABLE, TRANSACTION_SPECIFICATION_TABLE
+from Utility_Functions.config.constants import PURCHASE_LINE_TABLE, PURCHASE_HSN_GST_TABLE, PURCHASE_COMMENTS_TABLE, GST_CODE_TABLE, PURCHASE_EMAIL_TABLE, PURCHASE_HEADER_MAIN, PURCHASE_HEADER_STATE, PURCHASE_HEADER_GST, APPROVAL_ENTRY_TABLE, PAYMENT_TERMS_CODE_TABLE, SHIPMENT_METHOD_TABLE, TRANSACTION_SPECIFICATION_TABLE, ITEM_MASTER_TABLE, SPECIFICATION_CODE_TABLE
 from Utility_Functions.config.database import execute_update_with_retry, get_odbc_connection_string, get_table_schema, row_to_dict, get_state_info, get_engine
 import pyodbc
 import uuid
@@ -55,6 +55,82 @@ def _purchase_debug_print(message):
         print(message)
 
 
+def _normalized_column_name(column_name):
+    return re.sub(r"[^a-z0-9]", "", str(column_name or "").lower())
+
+
+def _find_column(row, *candidate_names):
+    if not row:
+        return None
+    normalized_candidates = {
+        _normalized_column_name(candidate)
+        for candidate in candidate_names
+    }
+    for column_name, value in row.items():
+        if _normalized_column_name(column_name) in normalized_candidates:
+            return value
+    return None
+
+
+def fetch_item_specifications(cursor, item_no):
+    item_no = str(item_no or "").strip()
+    if not item_no:
+        return []
+
+    cursor.execute(
+        f"SELECT * FROM {ITEM_MASTER_TABLE} WHERE [No_] = ?",
+        item_no,
+    )
+    item_row = cursor.fetchone()
+    if not item_row:
+        return []
+
+    item_data = row_to_dict(cursor, item_row)
+    qc_required = _find_column(item_data, "QC Required")
+    if str(qc_required if qc_required is not None else "").strip() in {"", "0", "False", "false"}:
+        return []
+
+    specification_code = _find_column(
+        item_data,
+        "Item Specification Code",
+        "Item Specifiction Code",
+    )
+    specification_code = str(specification_code or "").strip()
+    if not specification_code:
+        return []
+
+    cursor.execute(f"SELECT TOP 0 * FROM {SPECIFICATION_CODE_TABLE}")
+    specification_columns = {
+        _normalized_column_name(column[0]): column[0]
+        for column in cursor.description
+    }
+    code_column = (
+        specification_columns.get(_normalized_column_name("Item Specification Code"))
+        or specification_columns.get(_normalized_column_name("Item Specifiction Code"))
+    )
+    if not code_column:
+        return []
+
+    line_no_column = specification_columns.get(_normalized_column_name("Line No_"))
+    order_by = f" ORDER BY [{line_no_column}] ASC" if line_no_column else ""
+    cursor.execute(
+        f"SELECT * FROM {SPECIFICATION_CODE_TABLE} WHERE [{code_column}] = ?{order_by}",
+        specification_code,
+    )
+
+    specifications = []
+    for specification_row in cursor.fetchall():
+        specification_data = row_to_dict(cursor, specification_row)
+        description = _find_column(specification_data, "Description")
+        text_value = _find_column(specification_data, "Text Value")
+        if str(description or "").strip() or str(text_value or "").strip():
+            specifications.append({
+                "Description": str(description or "").strip(),
+                "Text Value": str(text_value or "").strip(),
+            })
+    return specifications
+
+
 def _format_assigned_user_name(assigned_user_id):
     account_name = str(assigned_user_id or "").strip().rsplit("\\", 1)[-1]
     name_parts = [part for part in re.split(r"[._\s]+", account_name) if part]
@@ -66,7 +142,7 @@ def fetch_purchase_line_items(no_):
     current_table = PURCHASE_LINE_TABLE
     
     query_lines = f"""
-        SELECT [Description], [Unit of Measure], [Direct Unit Cost], [Quantity], [Amount]
+        SELECT [No_], [Description], [Unit of Measure], [Direct Unit Cost], [Quantity], [Amount]
         FROM {PURCHASE_LINE_TABLE}
         WHERE [Document No_] = ?
         ORDER BY [Line No_] ASC
@@ -83,9 +159,15 @@ def fetch_purchase_line_items(no_):
                 print(f"Found {len(line_items)} line items for Purchase No_: {no_}")
                 
                 # Convert rows to dictionaries BEFORE closing cursor
+                specification_cache = {}
                 for line_row in line_items:
                     item_dict = row_to_dict(cursor, line_row)
                     items_list.append(item_dict)
+
+                    item_no = str(item_dict.get("No_") or "").strip()
+                    if item_no not in specification_cache:
+                        specification_cache[item_no] = fetch_item_specifications(cursor, item_no)
+                    item_dict["Specifications"] = specification_cache[item_no]
                     
                     desc = item_dict.get('Description', 'N/A')
                     qty = item_dict.get('Quantity', 0)

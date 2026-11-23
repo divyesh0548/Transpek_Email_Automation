@@ -97,4 +97,10 @@ CODE_CITY_TABLE = "[dbo].[Transpek Industry Limited$Post Code$437dbf0e-84ff-417a
 #GST Code table
 GST_CODE_TABLE = "[dbo].[Transpek Industry Limited$GST Group$db643212-b7fb-4dd4-b5a8-cb44ac714461]"
 
+# Specification code and description table
+SPECIFICATION_CODE_TABLE = "[dbo].[QC Specification Line$cea8e57e-050e-4880-840c-454ceb2e3f18]"
+
+# Item Master table 
+ITEM_MASTER_TABLE = "[dbo].[Transpek Industry Limited$Item$cea8e57e-050e-4880-840c-454ceb2e3f18]"
+
 START_TIMESTAMP = datetime.now()
