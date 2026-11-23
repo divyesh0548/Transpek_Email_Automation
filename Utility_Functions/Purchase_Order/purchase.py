@@ -137,11 +137,28 @@ def _gst_registration_state_code(gst_number, column_name, no_):
     return state_code
 
 
-def purchase_gst_jurisdiction_type(vendor_gst_no, location_gst_no, no_):
+def purchase_gst_jurisdiction_type(vendor_gst_no, location_gst_no, no_, vendor_state_code=None):
     """Decide interstate (1, IGST) or intrastate (0, SGST/CGST) from GSTIN state codes."""
-    vendor_state = _gst_registration_state_code(
-        vendor_gst_no, "Vendor GST Reg_ No_", no_
-    )
+    if str(vendor_gst_no or "").strip():
+        vendor_state = _gst_registration_state_code(
+            vendor_gst_no, "Vendor GST Reg_ No_", no_
+        )
+    else:
+        if vendor_state_code is None:
+            raise ValueError(
+                f"Invalid Vendor GST Reg_ No_ and State for Document No_: {no_}"
+            )
+        try:
+            vendor_state = f"{int(vendor_state_code):02d}"
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"Invalid Vendor State Code for Document No_: {no_}"
+            )
+        if len(vendor_state) != 2:
+            raise ValueError(
+                f"Invalid Vendor State Code for Document No_: {no_}"
+            )
+
     location_state = _gst_registration_state_code(
         location_gst_no, "Location GST Reg_ No_", no_
     )
@@ -349,13 +366,16 @@ def _process_one_pending_purchase_email(conn, email_row):
     )
     vendor_gst_reg_no = str(gst_data[0]).strip() if gst_data and gst_data[0] else ""
     location_gst_reg_no = str(gst_data[1]).strip() if gst_data and gst_data[1] else ""
+    state_info = get_state_info(state_data[0]) if state_data else {}
     purchase_gst_details = fetch_purchase_gst_details(cursor2, no_)
     if purchase_gst_details.get("GST Group Code"):
         purchase_gst_details["GST Jurisdiction Type"] = purchase_gst_jurisdiction_type(
-            vendor_gst_reg_no, location_gst_reg_no, no_
+            vendor_gst_reg_no,
+            location_gst_reg_no,
+            no_,
+            state_info.get("state_code") if state_info else None,
         )
 
-    state_info = get_state_info(state_data[0]) if state_data else {}
     order_date = main_rd.get("Order Date")
     buy_from_vendor_no = main_rd.get("Pay-to Vendor No_")
     buy_from_vendor_name = main_rd.get("Buy-from Vendor Name")

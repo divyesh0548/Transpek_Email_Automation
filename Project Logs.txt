@@ -3,3 +3,7 @@ Asked Birju sir to check the GRN process of a PO in backup before moving to live
 Create a general order is possible.
 
 Call him after 2 hours he said he is busy and first Indent should be created. Because that is the full flow, and that way GRN can be tested. 
+
+
+05/11
+Birju sir got setup error in GRN process which is resolved from tripearltech team. Now he will check the GRN process. And also the Indent process with mixed approval flow.
