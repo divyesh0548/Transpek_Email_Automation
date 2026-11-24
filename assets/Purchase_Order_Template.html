@@ -113,9 +113,22 @@
         .ship-to-section {
             font-weight: bold;
             padding: 5px;
+            width: 60%;
+            display: table-cell;
+            vertical-align: top;
+            text-align: left;
+            white-space: normal;
+            word-break: normal;
+            overflow-wrap: break-word;
             border-left: 1px solid #000;
             border-right: 1px solid #000;
             border-bottom: 1px solid #000;
+        }
+
+        .ship-totals-row {
+            display: table;
+            width: 100%;
+            table-layout: fixed;
         }
 
         .instructions-box {
@@ -164,9 +177,9 @@
         }
 
         .totals-section {
-            float: right;
-            width: 350px;
-            clear: both;
+            display: table-cell;
+            width: 40%;
+            vertical-align: top;
         }
 
         .totals-table {
@@ -211,11 +224,18 @@
             border-bottom: 1px solid #000;
         }
 
-
-        .terms-conditions .info-row {
-            display: block;
+        .terms-grid {
+            display: table;
             width: 100%;
+            table-layout: fixed;
+        }
+
+        .terms-column {
+            display: table-cell;
+            width: 33.333%;
             text-align: left;
+            vertical-align: top;
+            padding-right: 15px;
             white-space: pre-line;
         }
 
@@ -401,38 +421,40 @@
         </tbody>
     </table>
 
-    <!-- Ship To Section -->
-    <div class="ship-to-section">
-        Ship To : {{ ship_to_address }} GSTIN: {{ ship_to_gst }}
-    </div>
+    <div class="ship-totals-row">
+        <!-- Ship To Section -->
+        <div class="ship-to-section">
+            Ship To : {{ ship_to_address }} GSTIN: {{ ship_to_gst }}
+        </div>
 
-    <!-- Totals Section -->
-    <div class="totals-section">
-        <table class="totals-table">
-            <tr class="py-2 fw-bold">
-                <td class="label-col">Basic Total</td>
-                <td class="amount-col">{{ basic_total }}</td>
-            </tr>
-            {% if show_gst and gst_jurisdiction_type == 1 %}
-            <tr>
-                <td class="label-col">IGST {{ igst_rate_display }}%</td>
-                <td class="amount-col">{{ igst_amount }}</td>
-            </tr>
-            {% elif show_gst %}
-            <tr>
-                <td class="label-col">SGST {{ sgst_rate_display }}%</td>
-                <td class="amount-col">{{ sgst_amount }}</td>
-            </tr>
-            <tr>
-                <td class="label-col">CGST {{ cgst_rate_display }}%</td>
-                <td class="amount-col">{{ cgst_amount }}</td>
-            </tr>
-            {% endif %}
-            <tr class="grand-total-row">
-                <td class="label-col fw-bold">Grand Total</td>
-                <td class="amount-col">{{ grand_total }}</td>
-            </tr>
-        </table>
+        <!-- Totals Section -->
+        <div class="totals-section">
+            <table class="totals-table">
+                <tr class="py-2 fw-bold">
+                    <td class="label-col">Basic Total</td>
+                    <td class="amount-col">{{ basic_total }}</td>
+                </tr>
+                {% if show_gst and gst_jurisdiction_type == 1 %}
+                <tr>
+                    <td class="label-col">IGST {{ igst_rate_display }}%</td>
+                    <td class="amount-col">{{ igst_amount }}</td>
+                </tr>
+                {% elif show_gst %}
+                <tr>
+                    <td class="label-col">SGST {{ sgst_rate_display }}%</td>
+                    <td class="amount-col">{{ sgst_amount }}</td>
+                </tr>
+                <tr>
+                    <td class="label-col">CGST {{ cgst_rate_display }}%</td>
+                    <td class="amount-col">{{ cgst_amount }}</td>
+                </tr>
+                {% endif %}
+                <tr class="grand-total-row">
+                    <td class="label-col fw-bold">Grand Total</td>
+                    <td class="amount-col">{{ grand_total }}</td>
+                </tr>
+            </table>
+        </div>
     </div>
 
     <!-- Amount in Words -->
@@ -445,9 +467,20 @@
 
     <!-- Terms and Conditions -->
     <div class="terms-conditions">
-        <div class="info-row"><strong>Specification No.:</strong> {{ specification_no }}</div>
-        <div class="info-row"><strong>Version Name :</strong> {{ version_name }}</div>
-        <div class="info-row"><strong>Version Date :</strong> {{ version_date }}</div>
+        <div class="terms-grid">
+            <div class="terms-column">
+                <strong>Specification No.</strong>
+                <div>{{ specification_no }}</div>
+            </div>
+            <div class="terms-column">
+                <strong>Version Name</strong>
+                <div>{{ version_name }}</div>
+            </div>
+            <div class="terms-column">
+                <strong>Version Date</strong>
+                <div>{{ version_date }}</div>
+            </div>
+        </div>
     </div>
 
     <!-- Purchase Comments -->

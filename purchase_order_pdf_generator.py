@@ -221,7 +221,7 @@ def prepare_Purchase_Order_Template_data(header_data: Dict, line_data: List[Dict
         # Terms and conditions fields (can be made dynamic if needed)
         'specification_no': '\n'.join(specification_numbers),
         'version_name': '\n'.join(version_names),
-        'version_date': '',  # Usually empty as per PDF
+        'version_date': str(header_data.get('Version Date') or ''),
         
         # Current date for generation
         'current_date': datetime.now().strftime('%d-%m-%Y'),
@@ -411,6 +411,7 @@ def get_template_data_for_testing():
         'Payment Terms Code': '30 Days Credit',
         'GST Jurisdiction Type': 0,
         'GST Rate': 28.0,
+        'Version Date': '24-10-2026',
         'Approver Mail ID': 'approver@transpek.com',
         'Creator Mail ID': 'creator@transpek.com'
     }
@@ -421,7 +422,12 @@ def get_template_data_for_testing():
             'quantity': 500.0,
             'unit_of_measure': 'NOS',
             'direct_unit_cost': 17.0,
-            'amount': 8500.0
+            'amount': 8500.0,
+            'HSN_SAC Code': '48211020',
+            'Specifications': [
+                {'Description': 'Appearance', 'Text Value': 'Colourless to hazy, light gray'},
+                {'Description': 'Purity as H2SO4', 'Text Value': '98.00 Min.'},
+            ],
         },
         {
             'description': 'Product label- 2-Methyl-4-( trifluoromethyl)-1,3-thiazole-5-carbonyl chloride ( HSN Code : 48211020 )',
@@ -461,6 +467,7 @@ if __name__ == "__main__":
         'Payment Terms Code': '30 Days Credit',
         'GST Jurisdiction Type': 0,
         'GST Rate': 28.0,
+        'Version Date': '24-10-2026',
         'Approver Mail ID': 'approver@transpek.com',
         'Creator Mail ID': 'creator@transpek.com'
     }
@@ -471,7 +478,12 @@ if __name__ == "__main__":
             'quantity': 500.0,
             'unit_of_measure': 'NOS',
             'direct_unit_cost': 17.0,
-            'amount': 8500.0
+            'amount': 8500.0,
+            'HSN_SAC Code': '48211020',
+            'Specifications': [
+                {'Description': 'Appearance', 'Text Value': 'Colourless to hazy, light gray'},
+                {'Description': 'Purity as H2SO4', 'Text Value': '98.00 Min.'},
+            ],
         },
         {
             'description': 'Product label- 2-Methyl-4-( trifluoromethyl)-1,3-thiazole-5-carbonyl chloride ( HSN Code : 48211020 )',
@@ -486,17 +498,14 @@ if __name__ == "__main__":
         # Display all fixed data
         fixed_data = get_all_fixed_data()
         print("=== All Fixed Data (Automatically Included) ===")
-        print("\n🏢 Buyer Company Details:")
+        print("\nBuyer Company Details:")
         for key, value in fixed_data['buyer_company'].items():
             print(f"   {key}: {value}")
         
-        print("\n✍️ Signature Details:")
+        print("\nSignature Details:")
         for key, value in fixed_data['signatures'].items():
             print(f"   {key}: {value}")
         
-        print("\n📝 Standard Remarks:")
-        for key, value in fixed_data['remarks'].items():
-            print(f"   {key}: {value}")
         print()
         
         # Generate PDF
@@ -508,11 +517,11 @@ if __name__ == "__main__":
         
         total_value = sum(float(item['amount']) for item in line_data)
         print("Purchase Order PDF generated successfully!")
-        print(f"Total value: ₹{total_value:,.2f}")
+        print(f"Total value: INR {total_value:,.2f}")
         print("Template includes:")
-        print("✅ Fixed Transpek Industry company details")
-        print("✅ Fixed signature details (REGINA.FERNANDES & CHETAN.JOSHI)")
-        print("✅ Fixed standard remarks section")
+        print("Fixed Transpek Industry company details")
+        print("Fixed signature details (REGINA.FERNANDES & CHETAN.JOSHI)")
+        print("Fixed standard remarks section")
         
         # Show template data structure
         template_data = get_template_data_for_testing()
