@@ -452,14 +452,29 @@ def _process_one_pending_purchase_email(conn, email_row):
     vendor_gst_reg_no = str(gst_data[0]).strip() if gst_data and gst_data[0] else ""
     location_gst_reg_no = str(gst_data[1]).strip() if gst_data and gst_data[1] else ""
     state_info = get_state_info(state_data[0]) if state_data else {}
-    purchase_gst_details = fetch_purchase_gst_details(cursor2, no_)
+    try:
+        purchase_gst_details = fetch_purchase_gst_details(cursor2, no_)
+    except ValueError:
+        purchase_gst_details = {
+            "GST Group Code": "",
+            "GST Jurisdiction Type": None,
+            "GST Rate": None,
+        }
+
     if purchase_gst_details.get("GST Group Code"):
-        purchase_gst_details["GST Jurisdiction Type"] = purchase_gst_jurisdiction_type(
-            vendor_gst_reg_no,
-            location_gst_reg_no,
-            no_,
-            state_info.get("state_code") if state_info else None,
-        )
+        try:
+            purchase_gst_details["GST Jurisdiction Type"] = purchase_gst_jurisdiction_type(
+                vendor_gst_reg_no,
+                location_gst_reg_no,
+                no_,
+                state_info.get("state_code") if state_info else None,
+            )
+        except (TypeError, ValueError):
+            purchase_gst_details = {
+                "GST Group Code": "",
+                "GST Jurisdiction Type": None,
+                "GST Rate": None,
+            }
 
     order_date = main_rd.get("Order Date")
     buy_from_vendor_no = main_rd.get("Pay-to Vendor No_")

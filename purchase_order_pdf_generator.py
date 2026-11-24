@@ -105,15 +105,21 @@ def prepare_Purchase_Order_Template_data(header_data: Dict, line_data: List[Dict
     # Calculate totals
     basic_total = sum(float(item.get('Amount', 0)) for item in line_data)
     gst_group_code = str(header_data.get('GST Group Code') or '').strip()
-    show_gst = bool(gst_group_code)
-    if show_gst:
-        gst_jurisdiction_type = int(header_data['GST Jurisdiction Type'])
-        gst_rate = float(header_data['GST Rate'])
-        if gst_jurisdiction_type not in (0, 1):
-            raise ValueError(f"Unsupported GST Jurisdiction Type: {gst_jurisdiction_type}")
-        if not 0 <= gst_rate <= 100:
-            raise ValueError(f"Invalid GST rate: {gst_rate}")
-    else:
+    show_gst = False
+    gst_jurisdiction_type = None
+    gst_rate = 0.0
+    if gst_group_code:
+        try:
+            gst_jurisdiction_type = int(header_data.get('GST Jurisdiction Type'))
+            gst_rate = float(header_data.get('GST Rate'))
+            show_gst = (
+                gst_jurisdiction_type in (0, 1)
+                and 0 <= gst_rate <= 100
+            )
+        except (TypeError, ValueError):
+            show_gst = False
+
+    if not show_gst:
         gst_jurisdiction_type = None
         gst_rate = 0.0
 
