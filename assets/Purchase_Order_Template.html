@@ -390,12 +390,6 @@
                 <td>
                     {{ item.description }}
                     {% if item.hsn_code %}<br><strong>HSN Code: {{ item.hsn_code }}</strong>{% endif %}
-                    {% if item.specifications %}
-                        {% for specification in item.specifications %}
-                        <br><strong>Specification No.:</strong> {{ specification.Description }}
-                        <br><strong>Version Name:</strong> {{ specification['Text Value'] }}
-                        {% endfor %}
-                    {% endif %}
                 </td>
                 <td class="center">{{ item.quantity }}</td>
                 <td class="center">{{ item.unit_of_measure }}</td>

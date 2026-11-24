@@ -150,7 +150,6 @@ def prepare_Purchase_Order_Template_data(header_data: Dict, line_data: List[Dict
             'unit_of_measure': item.get('Unit of Measure', 'NOS'),
             'direct_unit_cost': format_currency(item.get('Direct Unit Cost', 0)),
             'amount': format_currency(item.get('Amount', 0)),
-            'specifications': specifications,
         }
         prepared_line_items.append(prepared_item)
     
