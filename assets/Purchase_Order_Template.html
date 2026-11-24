@@ -217,6 +217,10 @@
             padding: 5px;
         }
 
+        .amount_delivery .delivery-detail {
+            margin-top: 4px;
+        }
+
         .terms-conditions {
             padding: 5px;
             border-left: 1px solid #000;
@@ -232,11 +236,19 @@
 
         .terms-column {
             display: table-cell;
-            width: 33.333%;
             text-align: left;
             vertical-align: top;
             padding-right: 15px;
             white-space: pre-line;
+        }
+
+        .terms-column.specification-column,
+        .terms-column.version-name-column {
+            width: 40%;
+        }
+
+        .terms-column.version-date-column {
+            width: 20%;
         }
 
 
@@ -460,23 +472,23 @@
     <!-- Amount in Words -->
     <div class="amount_delivery">
         <strong>**** {{ amount_in_words }} ****</strong>
-        <div class="info-row"><strong>Payment Term :</strong> {{ payment_terms }}</div>
-        <div class="info-row"><strong>Delivery Term / INCO Terms :</strong> {{ shipment_method }}</div>
-        <div class="info-row"><strong>Delivery Instructions :</strong> {{ transaction_specification }}</div>
+        <div class="info-row delivery-detail"><strong>Payment Term :</strong> {{ payment_terms }}</div>
+        <div class="info-row delivery-detail"><strong>Delivery Term / INCO Terms :</strong> {{ shipment_method }}</div>
+        <div class="info-row delivery-detail"><strong>Delivery Instructions :</strong> {{ transaction_specification }}</div>
     </div>
 
     <!-- Terms and Conditions -->
     <div class="terms-conditions">
         <div class="terms-grid">
-            <div class="terms-column">
+            <div class="terms-column specification-column">
                 <strong>Specification No.</strong>
                 <div>{{ specification_no }}</div>
             </div>
-            <div class="terms-column">
+            <div class="terms-column version-name-column">
                 <strong>Version Name</strong>
                 <div>{{ version_name }}</div>
             </div>
-            <div class="terms-column">
+            <div class="terms-column version-date-column">
                 <strong>Version Date</strong>
                 <div>{{ version_date }}</div>
             </div>
