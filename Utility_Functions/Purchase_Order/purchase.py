@@ -253,6 +253,7 @@ def fetch_purchase_gst_details(cursor, no_):
         SELECT [GST Group Code]
         FROM {PURCHASE_HSN_GST_TABLE}
         WHERE [Document No_] = ?
+        ORDER BY [Line No_] ASC
     """
     _purchase_debug_print(f"Querying table {current_table} for Purchase No_: {no_}")
     try:
@@ -263,19 +264,21 @@ def fetch_purchase_gst_details(cursor, no_):
     if not purchase_gst_rows:
         raise ValueError(f"No purchase GST rows found for Document No_: {no_}")
 
-    gst_group_codes = {str(row[0] or "").strip() for row in purchase_gst_rows}
-    if gst_group_codes == {""}:
+    gst_group_code = next(
+        (
+            str(row[0]).strip()
+            for row in purchase_gst_rows
+            if str(row[0] or "").strip()
+        ),
+        "",
+    )
+    if not gst_group_code:
         return {
             "GST Group Code": "",
             "GST Jurisdiction Type": None,
             "GST Rate": None,
         }
-    if "" in gst_group_codes or len(gst_group_codes) != 1:
-        raise ValueError(
-            f"Purchase GST rows have inconsistent group codes for Document No_: {no_}"
-        )
 
-    gst_group_code = gst_group_codes.pop()
     gst_description_query = f"""
         SELECT [Description]
         FROM {GST_CODE_TABLE}
