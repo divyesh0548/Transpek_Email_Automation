@@ -7,6 +7,7 @@ import os
 import base64
 from pathlib import Path
 from Utility_Functions.config.utility_functions import get_local_bootstrap_urls
+from Utility_Functions.config.database import get_state_info
 
 # Configure wkhtmltopdf path (adjust as needed for your system)
 BASE_DIR = Path(__file__).resolve().parent
@@ -47,6 +48,23 @@ def get_signature_details():
         'authorized_signatory_designation': 'Authorised Signatory',
         'company_signatory_line': f'For Transpek Industry Limited'
     }
+
+def get_vendor_state_code(header_data: Dict) -> str:
+    """Get the vendor display state code without affecting GST tax calculation."""
+    vendor_gst_no = str(header_data.get('Vendor GST Reg_ No_', '') or '').strip()
+    gst_state_code = vendor_gst_no[:2]
+    if len(gst_state_code) == 2 and gst_state_code.isdigit():
+        return gst_state_code
+
+    vendor_state_code = str(header_data.get('Vendor State Code', '') or '').strip()
+    if len(vendor_state_code) == 2 and vendor_state_code.isdigit():
+        return vendor_state_code
+
+    state_info = get_state_info(header_data.get('State', ''))
+    if state_info:
+        return f"{int(state_info['state_code']):02d}"
+
+    return ""
 
 def generate_purchase_order_pdf(header_data: Dict, line_data: List[Dict], template_path: str = "assets/Purchase_Order_Template.html", output_filename: str = None):
     # Prepare template data
@@ -170,6 +188,7 @@ def prepare_Purchase_Order_Template_data(header_data: Dict, line_data: List[Dict
         'vendor_city': header_data.get('Buy-from City', ''),
         'vendor_post_code': header_data.get('Buy-from Post Code', ''),
         'vendor_state': header_data.get('State', ''),
+        'vendor_state_code': get_vendor_state_code(header_data),
         'vendor_gst_no': header_data.get('Vendor GST Reg_ No_', ''),
         'payment_terms': header_data.get('Payment Terms Description', ''),
         'shipment_method': header_data.get('Shipment Method', ''),

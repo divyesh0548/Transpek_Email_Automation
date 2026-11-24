@@ -483,6 +483,14 @@ def _process_one_pending_purchase_email(conn, email_row):
     buy_from_city = main_rd.get("Buy-from Contact")
     buy_from_post_code = main_rd.get("Buy-from Post Code")
     state = state_info.get("state_name", "") if state_info else ""
+    vendor_state_code = ""
+    vendor_gst_state_code = str(vendor_gst_reg_no or "").strip()[:2]
+    if len(vendor_gst_state_code) == 2 and vendor_gst_state_code.isdigit():
+        vendor_state_code = vendor_gst_state_code
+    elif state_info:
+        fallback_state_code = state_info.get("state_code")
+        if fallback_state_code is not None:
+            vendor_state_code = f"{int(fallback_state_code):02d}"
     payment_terms_code = main_rd.get("Payment Terms Code")
     approver_email = email_row[1]
     creator_email = email_row[2]
@@ -502,6 +510,7 @@ def _process_one_pending_purchase_email(conn, email_row):
         'Buy-from City': buy_from_city,
         'Buy-from Post Code': buy_from_post_code,
         'State': state,
+        'Vendor State Code': vendor_state_code,
         'Vendor GST Reg_ No_': vendor_gst_reg_no,
         'Location GST Reg_ No_': location_gst_reg_no,
         'Payment Terms Code': payment_terms_code,

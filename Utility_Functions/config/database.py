@@ -126,7 +126,9 @@ def get_table_schema(table_name):
 
 
 def get_state_info(state_abbreviation):
-    
+    if not isinstance(state_abbreviation, str) or not state_abbreviation.strip():
+        return None
+
     # Dictionary of all Indian states and union territories
     indian_states = {
         'AN': {'name': 'Andaman and Nicobar Islands', 'code': 35},
