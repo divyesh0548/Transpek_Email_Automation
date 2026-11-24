@@ -468,6 +468,7 @@ if __name__ == "__main__":
         'GST Jurisdiction Type': 0,
         'GST Rate': 28.0,
         'Version Date': '24-10-2026',
+        'Purchase Comments': 'FREE DELIVERY AT EKALBARA WORKS',
         'Approver Mail ID': 'approver@transpek.com',
         'Creator Mail ID': 'creator@transpek.com'
     }
