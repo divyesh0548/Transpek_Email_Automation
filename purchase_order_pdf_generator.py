@@ -219,8 +219,8 @@ def prepare_Purchase_Order_Template_data(header_data: Dict, line_data: List[Dict
         'copy_type': 'SUPPLIER COPY',  # Can be made dynamic if needed
         
         # Terms and conditions fields (can be made dynamic if needed)
-        'specification_no': ' | '.join(specification_numbers),
-        'version_name': ' | '.join(version_names),
+        'specification_no': '\n'.join(specification_numbers),
+        'version_name': '\n'.join(version_names),
         'version_date': '',  # Usually empty as per PDF
         
         # Current date for generation
