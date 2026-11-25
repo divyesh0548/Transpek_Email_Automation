@@ -206,8 +206,13 @@ HOD reject uses `int_status=0`, which maps to **`Emaill Status = 'Pending'`** (n
 
 Same logic as PO:
 
+| Field | Required value |
+|-------|-----------------|
 | Header `Status` | `2` |
+| Header `Document Type` | `1` |
 | Email `Email Send` | `'0'`, `NULL`, `''` |
+
+Only Sales Header rows with `Document Type = 1` are eligible for sales-order email processing. Other document types, including invoices, are excluded by the initial pending-email query and by the email-status repair query.
 
 **After send:** `Email Send = 1`, `Emaill Status = 'sent for approval'`, `Timestamps` updated.
 
@@ -226,7 +231,7 @@ Also updates `APPROVAL_ENTRY_TABLE`, restriction records on approve, and schedul
 
 ### Fix — `fix_sales_order_email_status()`
 
-Same as PO: `SALES_ORDER_MAIN.Status = 0` + `SALES_ORDER_EMAIL_TABLE.Email Send = '1'` → reset `Email Send` to `'0'`.
+Same as PO: `SALES_ORDER_MAIN.Status = 0` + `SALES_ORDER_MAIN.Document Type = 1` + `SALES_ORDER_EMAIL_TABLE.Email Send = '1'` → reset `Email Send` to `'0'`.
 
 ---
 

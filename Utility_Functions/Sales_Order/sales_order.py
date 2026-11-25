@@ -192,6 +192,7 @@ def fix_sales_order_email_status():
                 INNER JOIN {SALES_ORDER_MAIN} ost ON pe.[No_] = ost.[No_]
                 WHERE 
                     ost.[Status] = 0
+                    AND ost.[Document Type] = 1
                     AND pe.[Email Send] = '1'
             """
             cursor.execute(fix_query)
@@ -267,6 +268,7 @@ def check_sales_order_pending_emails():
                 INNER JOIN {SALES_ORDER_MAIN} ost ON pe.[No_] = ost.[No_]
                 WHERE 
                     ost.[Status] = 2
+                    AND ost.[Document Type] = 1
                     AND (
                         pe.[Email Send] = '0'
                         OR pe.[Email Send] IS NULL

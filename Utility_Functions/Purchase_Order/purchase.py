@@ -153,6 +153,7 @@ def fetch_purchase_line_items(no_):
             cursor = conn.cursor()
             _purchase_debug_print(f"Querying table {current_table} for Purchase No_: {no_}")
             cursor.execute(query_lines, (no_,))
+            line_columns = [column[0] for column in cursor.description]
             line_items = cursor.fetchall()
             
             if line_items:
@@ -161,7 +162,7 @@ def fetch_purchase_line_items(no_):
                 # Convert rows to dictionaries BEFORE closing cursor
                 specification_cache = {}
                 for line_row in line_items:
-                    item_dict = row_to_dict(cursor, line_row)
+                    item_dict = dict(zip(line_columns, line_row))
                     items_list.append(item_dict)
 
                     item_no = str(item_dict.get("No_") or "").strip()
