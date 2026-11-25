@@ -142,7 +142,8 @@ def fetch_purchase_line_items(no_):
     current_table = PURCHASE_LINE_TABLE
     
     query_lines = f"""
-        SELECT [No_], [Description], [Unit of Measure], [Direct Unit Cost], [Quantity], [Amount]
+        SELECT [Line No_], [No_], [Description], [Unit of Measure],
+               [Direct Unit Cost], [Quantity], [Amount]
         FROM {PURCHASE_LINE_TABLE}
         WHERE [Document No_] = ?
         ORDER BY [Line No_] ASC
@@ -158,16 +159,21 @@ def fetch_purchase_line_items(no_):
             
             if line_items:
                 print(f"Found {len(line_items)} line items for Purchase No_: {no_}")
-                
-                # Convert rows to dictionaries BEFORE closing cursor
-                specification_cache = {}
-                for line_row in line_items:
-                    item_dict = dict(zip(line_columns, line_row))
-                    items_list.append(item_dict)
 
+                # Map every line before the cursor is reused for related lookups.
+                items_list = [dict(zip(line_columns, line_row)) for line_row in line_items]
+                specification_cache = {}
+                for item_dict in items_list:
                     item_no = str(item_dict.get("No_") or "").strip()
                     if item_no not in specification_cache:
-                        specification_cache[item_no] = fetch_item_specifications(cursor, item_no)
+                        try:
+                            specification_cache[item_no] = fetch_item_specifications(cursor, item_no)
+                        except pyodbc.Error as e:
+                            print(
+                                f"Warning: Could not fetch specifications for item "
+                                f"{item_no} on Purchase No_ {no_}: {e}"
+                            )
+                            specification_cache[item_no] = []
                     item_dict["Specifications"] = specification_cache[item_no]
                     
                     desc = item_dict.get('Description', 'N/A')
@@ -178,7 +184,7 @@ def fetch_purchase_line_items(no_):
                     print(f"  - {desc}: {qty} {unit} @ {cost}")
 
                 query_hsn_codes = f"""
-                    SELECT [HSN_SAC Code]
+                    SELECT [Line No_], [HSN_SAC Code]
                     FROM {PURCHASE_HSN_GST_TABLE}
                     WHERE [Document No_] = ?
                     ORDER BY [Line No_] ASC
@@ -187,26 +193,31 @@ def fetch_purchase_line_items(no_):
                 _purchase_debug_print(f"Querying table {current_table} for Purchase No_: {no_}")
                 cursor.execute(query_hsn_codes, (no_,))
                 hsn_codes = cursor.fetchall()
-                if len(hsn_codes) != len(items_list):
+                hsn_by_line_no = {
+                    hsn_row[0]: hsn_row[1]
+                    for hsn_row in hsn_codes
+                }
+                if len(hsn_by_line_no) != len(items_list):
                     _purchase_debug_print(
-                        f"WARNING: Found {len(hsn_codes)} HSN codes for "
+                        f"WARNING: Found {len(hsn_by_line_no)} HSN codes for "
                         f"{len(items_list)} line items on Purchase No_: {no_}"
                     )
-                for item_dict, hsn_row in zip(items_list, hsn_codes):
-                    item_dict['HSN_SAC Code'] = hsn_row[0]
+                for item_dict in items_list:
+                    item_dict['HSN_SAC Code'] = hsn_by_line_no.get(item_dict['Line No_'])
             else:
                 print(f"No line items found for Purchase No_: {no_}")
             
             cursor.close()  # Close cursor AFTER processing all rows
         
-    except Exception as e:
+    except pyodbc.Error as e:
         if _purchase_debug_enabled():
             _purchase_debug_print(
                 f"Error querying table {current_table} for Purchase No_ {no_}: {str(e)}"
             )
         else:
             print(f"Error fetching line items: {str(e)}")
-    
+        raise PurchaseDatabaseQueryError(current_table, e) from e
+
     return items_list
 
 
