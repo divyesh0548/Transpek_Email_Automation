@@ -8,6 +8,9 @@ from Utility_Functions.config.constants import SALES_ORDER_MAIN
 from Utility_Functions.config.database import get_odbc_connection_string
 
 
+FILTER_BY_DOCUMENT_TYPE = True
+
+
 def extract_prefix(order_number):
     if not order_number:
         return None
@@ -20,11 +23,17 @@ def main():
     load_dotenv()
     load_secrets()
 
+    where_clauses = [
+        "[No_] IS NOT NULL",
+        "LTRIM(RTRIM([No_])) <> ''",
+    ]
+    if FILTER_BY_DOCUMENT_TYPE:
+        where_clauses.append("[Document Type] = 1")
+
     query = f"""
         SELECT DISTINCT [No_]
         FROM {SALES_ORDER_MAIN}
-        WHERE [No_] IS NOT NULL
-          AND LTRIM(RTRIM([No_])) <> ''
+        WHERE {" AND ".join(where_clauses)}
     """
 
     with pyodbc.connect(get_odbc_connection_string(), timeout=30) as connection:
