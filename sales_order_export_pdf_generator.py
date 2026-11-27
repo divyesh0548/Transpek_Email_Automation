@@ -100,10 +100,11 @@ def format_quantity(quantity):
     
     return f"{quantity:,.2f}"
 
-def convert_number_to_words(amount: float) -> str:
-    """Convert number to words in USD format."""
+def convert_number_to_words(amount: float, currency: str = "USD") -> str:
+    """Convert a number to words using the provided currency code."""
+    currency_code = str(currency or "USD").strip()
     if amount == 0:
-        return "ZERO USD ONLY"
+        return f"ZERO {currency_code} ONLY"
     
     ones = ["", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NINE"]
     teens = ["TEN", "ELEVEN", "TWELVE", "THIRTEEN", "FOURTEEN", "FIFTEEN", 
@@ -161,9 +162,9 @@ def convert_number_to_words(amount: float) -> str:
     dollar_words = convert_to_words(dollars)
     
     if dollar_words:
-        dollar_part = f"{dollar_words} USD"
+        dollar_part = f"{dollar_words} {currency_code}"
     else:
-        dollar_part = "ZERO USD"
+        dollar_part = f"ZERO {currency_code}"
     
     if cents == 0:
         return f"{dollar_part} ONLY"
@@ -405,8 +406,9 @@ if __name__ == "__main__":
         
         print("\n✅ Export Sales Order PDF generated successfully!")
         print(f"📄 File: Export_Sales_Order_SE-SO-25260002.pdf")
-        print(f"💰 Total Amount: {format_currency(430600)} USD")
-        print(f"📝 Amount in Words: {convert_number_to_words(430600)}")
+        currency = str(header_data.get('currency') or 'USD').strip()
+        print(f"💰 Total Amount: {format_currency(430600)} {currency}")
+        print(f"📝 Amount in Words: {convert_number_to_words(430600, currency)}")
         
     except Exception as e:
         print(f"❌ Error generating Export Sales Order PDF: {e}")
