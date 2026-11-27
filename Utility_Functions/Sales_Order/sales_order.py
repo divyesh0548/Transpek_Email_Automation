@@ -807,7 +807,7 @@ def check_sales_order_pending_emails():
                             "order_no": main_rd.get("External Document No_") or "",
                             "consignee_name": main_rd.get("Ship-to Name") or "",
                             "consignee_address": main_rd.get("Ship-to Address") or "",
-                            "consignee_attn": main_rd.get("Order Date") or "",
+                            "consignee_attn": main_rd.get("Ship-to Contact") or "",
                             "currency": main_rd.get("Currency Code") if main_rd.get("Currency Code") is not None else "",
                             "tentative_shipment_date": main_rd.get("Promised Delivery Date") or datetime.now(),
                             "deliver_date": main_rd.get("Shipping Time") or datetime.now(),
