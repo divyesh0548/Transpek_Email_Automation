@@ -303,12 +303,24 @@
                                 Customer :
                             </div>
                             <div class="party-info">
-                                <div><span>{{ customer_name }}</span></div>
-                                <div><span>{{ customer_address_1 }}</span></div>
-                                <div><span>{{ customer_address_2 }}</span></div>
-                                <div><span>ATTN:{{ customer_attn }}</span></div>
-                                <div><span>TEL:{{ customer_phone_no }}</span></div>
-                                <div><span>Email:{{ customer_email }}</span></div>
+                                {% if customer_name and customer_name|trim %}
+                                <div><span>{{ customer_name|trim }}</span></div>
+                                {% endif %}
+                                {% if customer_address_1 and customer_address_1|trim %}
+                                <div><span>{{ customer_address_1|trim }}</span></div>
+                                {% endif %}
+                                {% if customer_address_2 and customer_address_2|trim %}
+                                <div><span>{{ customer_address_2|trim }}</span></div>
+                                {% endif %}
+                                {% if customer_attn and customer_attn|trim %}
+                                <div><span>ATTN: {{ customer_attn|trim }}</span></div>
+                                {% endif %}
+                                {% if customer_phone_no and customer_phone_no|trim %}
+                                <div><span>TEL: {{ customer_phone_no|trim }}</span></div>
+                                {% endif %}
+                                {% if customer_email and customer_email|trim %}
+                                <div><span>Email: {{ customer_email|trim }}</span></div>
+                                {% endif %}
                             </div>
                         </div>
                         <div class="party-column">
@@ -320,7 +332,9 @@
                                 <div><span>ATTN: {{ TPK1_contact }}</span></div>
                                 <div><span>TEL: {{ TPK1_phone }}</span></div>
                                 <div><span>EMAIL: {{ TPK1_email }}</span></div>
-                                <div><span>FAX: {{ TPK1_fax }}</span></div>
+                                {% if TPK1_fax and TPK1_fax|trim %}
+                                <div><span>FAX: {{ TPK1_fax|trim }}</span></div>
+                                {% endif %}
                                 {% else %}
                                 <p>-</p>
                                 {% endif %}
@@ -332,17 +346,23 @@
                         <div class="party-column">
                             <div class="party-title">Consignee :</div>
                             <div class="party-info">
-                                <div><span>{{ consignee_name }}</span></div>
-                                <div><span>{{ consignee_address }}</span></div>
-                                <div><span>ATTN: {{ consignee_attn }}</span></div>
-                                {% if consignee_phone %}
-                                <div><span>TEL: {{ consignee_phone }}</span></div>
+                                {% if consignee_name and consignee_name|trim %}
+                                <div><span>{{ consignee_name|trim }}</span></div>
                                 {% endif %}
-                                {% if consignee_email %}
-                                <div><span>EMAIL: {{ consignee_email }}</span></div>
+                                {% if consignee_address and consignee_address|trim %}
+                                <div><span>{{ consignee_address|trim }}</span></div>
                                 {% endif %}
-                                {% if consignee_fax %}
-                                <div><span>FAX: {{ consignee_fax }}</span></div>
+                                {% if consignee_attn and consignee_attn|trim %}
+                                <div><span>ATTN: {{ consignee_attn|trim }}</span></div>
+                                {% endif %}
+                                {% if consignee_phone and consignee_phone|trim %}
+                                <div><span>TEL: {{ consignee_phone|trim }}</span></div>
+                                {% endif %}
+                                {% if consignee_email and consignee_email|trim %}
+                                <div><span>EMAIL: {{ consignee_email|trim }}</span></div>
+                                {% endif %}
+                                {% if consignee_fax and consignee_fax|trim %}
+                                <div><span>FAX: {{ consignee_fax|trim }}</span></div>
                                 {% endif %}
                             </div>
                         </div>
@@ -355,7 +375,9 @@
                                 <div><span>ATTN: {{ TPK2_contact }}</span></div>
                                 <div><span>TEL: {{ TPK2_phone }}</span></div>
                                 <div><span>EMAIL: {{ TPK2_email }}</span></div>
-                                <div><span>FAX: {{ TPK2_fax }}</span></div>
+                                {% if TPK2_fax and TPK2_fax|trim %}
+                                <div><span>FAX: {{ TPK2_fax|trim }}</span></div>
+                                {% endif %}
                                 {% else %}
                                 <p>-</p>
                                 {% endif %}
