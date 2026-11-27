@@ -1,5 +1,5 @@
 from Utility_Functions.config.constants import SALES_ORDER_ITEMS_TABLE, SALES_ORDER_EMAIL_TABLE, SALES_ORDER_GST, SALES_ORDER_MAIN, SALES_PERSON_TABLE, SALES_ORDER_SHIPMENT_TABLE, SALES_ORDER_TPK_DETAILS_TABLE, SALES_ORDER_SHIP_TO_ADDRESS_TABLE, SALES_ORDER_CUSTOMER_TABLE, SALES_ORDER_SECONDARY_ITEMS_TABLE, SALES_HSN_GST_TABLE, GST_CODE_TABLE, APPROVAL_ENTRY_TABLE, COUNTRY_REGION_CODES_TABLE, TRANSPORT_METHOD_CODE_TABLE, PAYMENT_TERMS_CODE_TABLE, SHIPMENT_METHOD_TABLE, ENTRY_EXIT_POINTS_TABLE, CODE_CITY_TABLE
-from Utility_Functions.config.database import execute_update_with_retry, get_odbc_connection_string, row_to_dict, get_table_schema, get_engine, get_state_info
+from Utility_Functions.config.database import execute_update_with_retry, get_odbc_connection_string, get_table_schema, get_engine, get_state_info
 from Utility_Functions.config.utility_functions import extract_name_from_email, format_utc_timestamp_as_ist, get_utc_timestamp, smtp_send_message
 from Utility_Functions.config.warning_alerts import (
     MODULE_SALES_ORDER,
@@ -49,52 +49,59 @@ _SALES_ORDER_MAIN_HEADER_COLUMNS = (
     "[Posting No_ Series]",
     "[Promised Delivery Date]",
     "[Shipping Time]",
+    "[Package Tracking No_]",
 )
 SALES_ORDER_MAIN_HEADER_SELECT = ", ".join(_SALES_ORDER_MAIN_HEADER_COLUMNS)
 
 
 def fetch_sales_order_line_items(no_):
     """
-    Fetch all line items for a given purchase number
+    Fetch all line items for a given sales order number.
     Returns a list of dictionaries with item details
     """
     items_list = []
     
     query_lines = f"""
-        SELECT [No_], [Description], [Unit of Measure], [Unit Price], [Quantity], [Amount]
+        SELECT [Line No_], [No_], [Description], [Unit of Measure],
+               [Unit Price], [Quantity], [Amount]
         FROM {SALES_ORDER_ITEMS_TABLE}
         WHERE [Document No_] = ?
         ORDER BY [Line No_] ASC
     """
-    
-    try:
-        with pyodbc.connect(get_odbc_connection_string()) as conn:
-            cursor = conn.cursor()
+
+    with pyodbc.connect(get_odbc_connection_string()) as conn:
+        cursor = conn.cursor()
+        try:
             cursor.execute(query_lines, (no_,))
+            line_columns = [column[0] for column in cursor.description]
             line_items = cursor.fetchall()
-            
+
             if line_items:
-                print(f"Found {len(line_items)} line items for Purchase No_: {no_}")
-                
-                # Convert rows to dictionaries BEFORE closing cursor
+                print(f"Found {len(line_items)} line items for Sales Order No_: {no_}")
                 for line_row in line_items:
-                    item_dict = row_to_dict(cursor, line_row)
+                    if len(line_row) != len(line_columns):
+                        raise ValueError(
+                            f"Sales line row has {len(line_row)} values but "
+                            f"{len(line_columns)} columns for Sales Order {no_}"
+                        )
+                    item_dict = dict(zip(line_columns, line_row))
                     items_list.append(item_dict)
-                    
+
                     product_code = item_dict.get('No_', 'N/A')
                     desc = item_dict.get('Description', 0)
                     quantity = item_dict.get('Quantity', '')
                     cost = item_dict.get('Unit Price', 0)
-                    
-                    print(f"  - {product_code}: {desc} {quantity} @ {cost}")
+                    line_no = item_dict.get('Line No_')
+
+                    print(
+                        f"  - Line {line_no}: {product_code}: "
+                        f"{desc} {quantity} @ {cost}"
+                    )
             else:
-                print(f"No line items found for Purchase No_: {no_}")
-            
-            cursor.close()  # Close cursor AFTER processing all rows
-        
-    except Exception as e:
-        print(f"Error fetching line items: {str(e)}")
-    
+                print(f"No line items found for Sales Order No_: {no_}")
+        finally:
+            cursor.close()
+
     return items_list
 
 
@@ -106,22 +113,47 @@ def _gst_registration_state_code(gst_number, column_name, no_):
     return state_code
 
 
-def sales_gst_jurisdiction_type(location_gst_no, customer_gst_no, ship_to_gst_no, no_):
+def _gst_state_code_from_state_abbreviation(state_abbreviation, column_name, no_):
+    state_info = get_state_info(state_abbreviation)
+    if not state_info:
+        raise ValueError(f"Invalid {column_name} for Document No_: {no_}")
+    return f"{int(state_info['state_code']):02d}"
+
+
+def sales_gst_jurisdiction_type(
+    location_gst_no,
+    customer_gst_no,
+    ship_to_gst_no,
+    no_,
+    location_state_code=None,
+    customer_state_code=None,
+):
     """Decide interstate (1, IGST) or intrastate (0, SGST/CGST) from GSTIN state codes."""
     customer_gst = str(customer_gst_no or "").strip()
     ship_to_gst = str(ship_to_gst_no or "").strip()
     counterpart_gst = customer_gst or ship_to_gst
-    if not counterpart_gst:
-        return 0
     counterpart_column = (
         "Customer GST Reg_ No_" if customer_gst else "Ship-to GST Reg_ No_"
     )
-    location_state = _gst_registration_state_code(
-        location_gst_no, "Location GST Reg_ No_", no_
-    )
-    counterpart_state = _gst_registration_state_code(
-        counterpart_gst, counterpart_column, no_
-    )
+    location_gst = str(location_gst_no or "").strip()
+    if location_gst:
+        location_state = _gst_registration_state_code(
+            location_gst, "Location GST Reg_ No_", no_
+        )
+    else:
+        location_state = _gst_state_code_from_state_abbreviation(
+            location_state_code, "Location State Code", no_
+        )
+
+    if counterpart_gst:
+        counterpart_state = _gst_registration_state_code(
+            counterpart_gst, counterpart_column, no_
+        )
+    else:
+        counterpart_state = _gst_state_code_from_state_abbreviation(
+            customer_state_code, "State", no_
+        )
+
     return 1 if location_state != counterpart_state else 0
 
 
@@ -130,6 +162,7 @@ def fetch_sales_order_gst_details(cursor, no_):
         SELECT [GST Group Code]
         FROM {SALES_HSN_GST_TABLE}
         WHERE [Document No_] = ?
+        ORDER BY [Line No_] ASC
     """
     cursor.execute(gst_query, (no_,))
     gst_rows = cursor.fetchall()
@@ -140,17 +173,21 @@ def fetch_sales_order_gst_details(cursor, no_):
             "GST Rate": None,
         }
 
-    gst_group_codes = {str(row[0] or "").strip() for row in gst_rows}
-    if gst_group_codes == {""}:
+    gst_group_code = next(
+        (
+            str(row[0]).strip()
+            for row in gst_rows
+            if str(row[0] or "").strip()
+        ),
+        "",
+    )
+    if not gst_group_code:
         return {
             "GST Group Code": "",
             "GST Jurisdiction Type": None,
             "GST Rate": None,
         }
-    if "" in gst_group_codes or len(gst_group_codes) != 1:
-        raise ValueError(f"Sales GST rows have inconsistent group codes for Document No_: {no_}")
 
-    gst_group_code = gst_group_codes.pop()
     description_query = f"""
         SELECT [Description]
         FROM {GST_CODE_TABLE}
@@ -317,7 +354,9 @@ def check_sales_order_pending_emails():
                         shipment_method = None
 
                         gst_query = f"""
-                            SELECT [Location GST Reg_ No_], [Customer GST Reg_ No_], [Ship-to GST Reg_ No_], [GST Ship-to State Code], [Mode of Transport]
+                            SELECT [Location GST Reg_ No_], [Customer GST Reg_ No_],
+                                   [Ship-to GST Reg_ No_], [GST Ship-to State Code],
+                                   [Mode of Transport], [Location State Code], [State]
                             FROM {SALES_ORDER_GST}
                             WHERE [No_] = ?
                         """
@@ -358,6 +397,8 @@ def check_sales_order_pending_emails():
                         location_gst = (gst_data[0] or "").strip() if gst_data and len(gst_data) > 0 else ""
                         customer_gst = (gst_data[1] or "").strip() if gst_data and len(gst_data) > 1 else ""
                         ship_to_gst = (gst_data[2] or "").strip() if gst_data and len(gst_data) > 2 else ""
+                        location_state_code = gst_data[5] if gst_data and len(gst_data) > 5 else ""
+                        customer_state_code = gst_data[6] if gst_data and len(gst_data) > 6 else ""
                         seller_gst = location_gst or ship_to_gst
                         seller_state = seller_gst[:2] if len(seller_gst) >= 2 else ""
                         customer_state = customer_gst[:2] if len(customer_gst) >= 2 else ""
@@ -419,11 +460,43 @@ def check_sales_order_pending_emails():
                             'approver_email': email_row[1] if len(email_row) > 2 else "",
                             'creator_name': creator_name,
                         }
-                        header_data.update(fetch_sales_order_gst_details(cursor, no_))
-                        if header_data.get("GST Group Code"):
-                            header_data["GST Jurisdiction Type"] = sales_gst_jurisdiction_type(
-                                location_gst, customer_gst, ship_to_gst, no_
-                            )
+                        sales_gst_details = {
+                            "GST Group Code": "",
+                            "GST Jurisdiction Type": None,
+                            "GST Rate": None,
+                        }
+                        is_domestic_order = str(no_ or "").strip().upper().startswith("SD")
+                        if is_domestic_order:
+                            try:
+                                sales_gst_details = fetch_sales_order_gst_details(
+                                    cursor, no_
+                                )
+                                if sales_gst_details.get("GST Group Code"):
+                                    sales_gst_details["GST Jurisdiction Type"] = (
+                                        sales_gst_jurisdiction_type(
+                                            location_gst,
+                                            customer_gst,
+                                            ship_to_gst,
+                                            no_,
+                                            location_state_code,
+                                            customer_state_code,
+                                        )
+                                    )
+                            except (TypeError, ValueError) as gst_error:
+                                print(
+                                    f"⚠️ GST could not be determined for Sales Order "
+                                    f"{no_}; generating invoice with base value only: "
+                                    f"{gst_error}"
+                                )
+                                sales_gst_details = {
+                                    "GST Group Code": "",
+                                    "GST Jurisdiction Type": None,
+                                    "GST Rate": None,
+                                }
+                        header_data.update(sales_gst_details)
+                        header_data["Inter_state"] = (
+                            sales_gst_details.get("GST Jurisdiction Type") == 1
+                        )
 
                         # Get state info safely
                         consignee_state_code = header_data.get('consignee_state_code', '')
@@ -751,8 +824,12 @@ def check_sales_order_pending_emails():
                             "credit_days": payment_terms_data_export[0] if payment_terms_data_export and len(payment_terms_data_export) > 0 else "",
                             "commission": sales_person_data[1] if sales_person_data and len(sales_person_data) > 1 else 0,
                             "shipment_by": gst_data[34] if gst_data and len(gst_data) > 34 else "",
-                            "commission_on": main_rd.get("Posting No_ Series") or "",
-                            "type_of_shipment": main_rd.get("Payment Method Code") or "",
+                            "commission_on": main_rd.get("Package Tracking No_") or "",
+                            "type_of_shipment": (
+                                pack_and_code_data[0]
+                                if pack_and_code_data and len(pack_and_code_data) > 0
+                                else ""
+                            ),
                             "lc_no": tpk_data[2] if len(tpk_data) > 2 else None,
                             "lc_date": tpk_data[1] if len(tpk_data) > 1 else None,
                             # Before accessing tpk_data, check if it's None

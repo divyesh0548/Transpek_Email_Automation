@@ -1,1 +1,9 @@
 Develop a functionality for SO/PO to store the order numbers in txt file with release order API result so that they can be identified later on if something goes wrong.
+
+Fixes in SO PDF
+SE =
+
+Consignee : In ATTN getting the next column data which is date, Get the contact column.  --- No need as of now
+Check the Shipment By data. It is taking data from wrong table.  --- This is correct
+"Comm. On" this looks wrong data.   --- Ask this
+"Type of Shipment" type of shipment is wrong.    --- Use Transport method code and table

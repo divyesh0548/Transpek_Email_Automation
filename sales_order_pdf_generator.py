@@ -225,18 +225,18 @@ def prepare_sales_order_template_data(header_data: Dict, line_data: List[Dict]) 
     subtotal = basic_total
     
     gst_group_code = str(header_data.get('GST Group Code') or '').strip()
-    show_gst = bool(gst_group_code)
+    is_domestic_order = str(header_data.get('no_') or '').strip().upper().startswith('SD')
+    show_gst = bool(gst_group_code) and is_domestic_order
     if show_gst:
         try:
-            gst_jurisdiction_type = int(header_data['GST Jurisdiction Type'])
-            gst_rate = float(header_data['GST Rate'])
-        except (KeyError, TypeError, ValueError) as exc:
-            raise ValueError("Sales GST details are incomplete or invalid") from exc
-        if gst_jurisdiction_type not in (0, 1):
-            raise ValueError(f"Unsupported GST Jurisdiction Type: {gst_jurisdiction_type}")
-        if not 0 <= gst_rate <= 100:
-            raise ValueError(f"Invalid GST rate: {gst_rate}")
-    else:
+            gst_jurisdiction_type = int(header_data.get('GST Jurisdiction Type'))
+            gst_rate = float(header_data.get('GST Rate'))
+            if gst_jurisdiction_type not in (0, 1) or not 0 <= gst_rate <= 100:
+                show_gst = False
+        except (TypeError, ValueError):
+            show_gst = False
+
+    if not show_gst:
         gst_jurisdiction_type = None
         gst_rate = 0.0
 
