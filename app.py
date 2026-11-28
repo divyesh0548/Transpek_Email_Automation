@@ -17,6 +17,7 @@ import uuid
 import pyodbc
 import hmac
 import atexit
+import threading
 from apscheduler.schedulers.background import BackgroundScheduler
 from Utility_Functions.config.secure import decrypt, decrypt_approval_token, encrypt
 from Utility_Functions.config.release_API import (
@@ -76,6 +77,25 @@ def inject_email_otp_flag():
 
 
 scheduler = BackgroundScheduler()
+_release_log_lock = threading.Lock()
+_RELEASE_SUCCESS_LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "release_order_success_log.jsonl")
+
+
+def _write_release_success_reference(order_label, request_id, release_result, attempt):
+    """Append a successful release response for reference; logging must never affect processing."""
+    try:
+        record = {
+            "order_type": order_label,
+            "order_number": str(request_id),
+            "response": release_result,
+            "attempts": attempt,
+            "recorded_at": datetime.now(timezone.utc).isoformat(),
+        }
+        with _release_log_lock:
+            with open(_RELEASE_SUCCESS_LOG, "a", encoding="utf-8") as log_file:
+                log_file.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+    except Exception as log_error:
+        print(f"Could not write release success reference for {order_label} {request_id}: {log_error}")
 
 
 # Session helper functions for OTP management (hash uses shared approval_otp.make_otp_hash)
@@ -443,6 +463,7 @@ def _run_delayed_release_api_call(
 
     if release_api_succeeded(release_result):
         print(f"API call successful for {order_label} {request_id}. Stopping retries.")
+        _write_release_success_reference(order_label, request_id, release_result, attempt)
         return True
 
     print(
